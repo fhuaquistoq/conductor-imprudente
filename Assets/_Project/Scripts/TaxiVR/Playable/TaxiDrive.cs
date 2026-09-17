@@ -8,6 +8,19 @@ namespace TaxiVR.Playable
         public CockpitInteractable Wheel;
         public PlayerHands Player;
         public FootReceiver Feet;
+
+        public float TotalMass = 1250f;
+        public float MaxSpeed = 19f;
+        public float ReverseSpeed = 7f;
+        public float MotorTorque = 1500f;
+        public float BrakeTorque = 3200f;
+        public float MaxSteer = 34f;
+        public float MinSteer = 5f;
+        public float SteerRate = 120f;
+        public float Downforce = 42f;
+        public float AntiRollFactor = .25f;
+        public float MinimumDirectionChangeSpeed = 2.5f;
+
         public Rigidbody Body { get; private set; }
         public float Speed => Vector3.Dot(Body.linearVelocity, transform.forward);
         public int Direction = 1;
@@ -20,15 +33,117 @@ namespace TaxiVR.Playable
         public int Collisions { get; private set; }
         public float TestThrottle = -1;
         public bool FootTracking => Feet != null && Feet.SocketBound && Feet.TrackingReceived;
+        public int MotorWheelCount => motor.Length;
+        public int GroundedWheels { get; private set; }
+        public float SteerAngle => steerAngle;
+
+        const float Track = .69f;
+        const float FrontZ = 1.30f;
+        const float RearZ = -1.14f;
+        const float WheelRadius = .25f;
+        const float SuspensionDistance = .22f;
+        const float RestCompression = .5f;
+
+        WheelCollider[] wheels;
+        WheelCollider[] motor;
+        WheelCollider[] steered;
+        Transform[] visuals;
+        bool[] centered;
+        float steerAngle;
         float lastCollision;
-        void Awake() { Body = GetComponent<Rigidbody>(); }
+        float rearGrip = 1f;
+
+        void Awake()
+        {
+            Body = GetComponent<Rigidbody>();
+            Body.mass = TotalMass;
+            Body.linearDamping = .04f;
+            Body.angularDamping = .9f;
+            Body.interpolation = RigidbodyInterpolation.Interpolate;
+            Body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            Body.centerOfMass = new Vector3(0, .27f, .06f);
+            Body.maxAngularVelocity = 6f;
+            BuildWheels();
+        }
+
+        void BuildWheels()
+        {
+            float height = WheelRadius + SuspensionDistance * (1f - RestCompression);
+            wheels = new WheelCollider[4];
+            centered = new bool[4];
+            motor = new[] { Create(2, new Vector3(Track, height, RearZ)), Create(3, new Vector3(-Track, height, RearZ)) };
+            steered = new[] { Create(0, new Vector3(Track, height, FrontZ)), Create(1, new Vector3(-Track, height, FrontZ)) };
+            wheels[0].ConfigureVehicleSubsteps(4f, 12, 18);
+        }
+
+        WheelCollider Create(int index, Vector3 position)
+        {
+            // Primero se emparenta al coche: un WheelCollider necesita un Rigidbody en su jerarquia
+            // en el momento de anadirse, o Unity avisa de que no puede funcionar.
+            var go = new GameObject("Rueda fisica " + index);
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = position;
+            var wheel = go.AddComponent<WheelCollider>();
+            wheel.mass = 22;
+            wheel.radius = WheelRadius;
+            wheel.suspensionDistance = SuspensionDistance;
+            wheel.forceAppPointDistance = .08f;
+            var spring = wheel.suspensionSpring;
+            spring.spring = 38000;
+            spring.damper = 2900;
+            spring.targetPosition = RestCompression;
+            wheel.suspensionSpring = spring;
+            wheel.forwardFriction = Curve(1.35f, .5f);
+            wheel.sidewaysFriction = Curve(1.75f, .42f);
+            wheels[index] = wheel;
+            return wheel;
+        }
+
+        static WheelFrictionCurve Curve(float stiffness, float extremumSlip)
+        {
+            return new WheelFrictionCurve
+            {
+                extremumSlip = extremumSlip,
+                extremumValue = 1f,
+                asymptoteSlip = extremumSlip * 2f,
+                asymptoteValue = .55f,
+                stiffness = stiffness
+            };
+        }
+
+        public void BindVisualWheels(Transform cabin)
+        {
+            visuals = new Transform[4];
+            visuals[0] = Pivot(0, Find(cabin, "Taxi_FrontLeftWheel"), "Pivote rueda frontal izq", false);
+            visuals[1] = Pivot(1, Find(cabin, "Taxi_FrontRightWheel"), "Pivote rueda frontal der", false);
+            visuals[2] = Pivot(2, Find(cabin, "Taxi_BackWheels"), "Pivote eje trasero", true);
+            visuals[3] = visuals[2];
+        }
+
+        Transform Find(Transform cabin, string name)
+        {
+            foreach (var candidate in cabin.GetComponentsInChildren<Transform>(true)) if (candidate.name == name) return candidate;
+            return null;
+        }
+
+        Transform Pivot(int index, Transform wheel, string label, bool keepCentered)
+        {
+            if (wheel == null) return null;
+            var pivot = new GameObject(label).transform;
+            pivot.SetParent(transform, false);
+            pivot.position = wheel.position;
+            pivot.rotation = wheel.rotation;
+            wheel.SetParent(pivot, true);
+            centered[index] = keepCentered;
+            return pivot;
+        }
+
         void Update()
         {
             var keys = Keyboard.current;
             if (keys?.qKey.wasPressedThisFrame == true) ChangeDirection(-1);
             if (keys?.eKey.wasPressedThisFrame == true) ChangeDirection(1);
             if (keys?.cKey.wasPressedThisFrame == true) Cruise = !Cruise;
-            if (keys?.escapeKey.wasPressedThisFrame == true) { Paused = !Paused; Cruise = false; }
             if (keys?.rKey.wasPressedThisFrame == true) ResetToRoad();
             var manual = keys?.wKey.isPressed == true ? 1f : 0f;
             var manualBrake = keys?.sKey.isPressed == true || keys?.spaceKey.isPressed == true ? 1f : 0f;
@@ -49,37 +164,108 @@ namespace TaxiVR.Playable
             BrakeAnalog = FootPedals.Approach(BrakeAnalog, Brake, FootPedals.RampSeconds, Time.deltaTime);
             if (Wheel != null && !Wheel.IsHeld)
             {
-                float steer = (keys?.dKey.isPressed == true ? 1 : 0) - (keys?.aKey.isPressed == true ? 1 : 0);
-                Wheel.Value = Mathf.MoveTowards(Wheel.Value, steer * 180, 220 * Time.deltaTime);
+                float target = (keys?.dKey.isPressed == true ? 1 : 0) - (keys?.aKey.isPressed == true ? 1 : 0);
+                Wheel.Value = Mathf.MoveTowards(Wheel.Value, target * 180, 480 * Time.deltaTime);
             }
         }
+
         void FixedUpdate()
         {
+            GroundedWheels = 0;
+            foreach (var wheel in wheels) if (wheel.isGrounded) GroundedWheels++;
+
             float speed = Speed;
-            speed = Mathf.MoveTowards(speed, 0, (BrakeAnalog * 12 + .22f) * Time.fixedDeltaTime);
-            if (BrakeAnalog < .1f) speed += ThrottleAnalog * Direction * 3.5f * Time.fixedDeltaTime;
-            speed = Mathf.Clamp(speed, -5, 16);
-            if (Skidding) speed = Mathf.MoveTowards(speed, 0, .9f * Time.fixedDeltaTime);
-            float steering = Wheel == null ? 0 : Mathf.Clamp(Wheel.Value / 180, -1, 1);
-            float authority = Skidding ? .62f : 1f;
-            float yaw = Mathf.Tan(steering * 30 * Mathf.Deg2Rad) * speed / 2.6f * Mathf.Rad2Deg * Time.fixedDeltaTime * authority;
-            Body.MoveRotation(Body.rotation * Quaternion.Euler(0, yaw, 0));
-            float drift = Skidding ? Mathf.Sin(Time.time * 9f) * .85f * Mathf.Clamp01(Mathf.Abs(speed) / 4f) : 0;
-            Body.linearVelocity = Body.rotation * new Vector3(drift, 0, speed);
-            Body.angularVelocity = Vector3.zero;
+            float ratio = Mathf.Clamp01(Mathf.Abs(speed) / MaxSpeed);
+            float target = Mathf.Clamp(Wheel == null ? 0 : Wheel.Value / 180f, -1f, 1f) * Mathf.Lerp(MaxSteer, MinSteer, ratio);
+            steerAngle = Mathf.MoveTowards(steerAngle, target, SteerRate * Time.fixedDeltaTime);
+            foreach (var wheel in steered) wheel.steerAngle = steerAngle;
+
+            float brake = BrakeAnalog > .05f ? BrakeTorque * BrakeAnalog : 0;
+            float torque = 0;
+            if (BrakeAnalog < .5f && ThrottleAnalog > .05f)
+            {
+                float fade = 1f - Mathf.Clamp01((Direction > 0 ? speed : -speed) / (Direction > 0 ? MaxSpeed : ReverseSpeed));
+                torque = MotorTorque * ThrottleAnalog * Direction * Mathf.Clamp01(fade) * (GroundedWheels > 1 ? 1f : .35f);
+            }
+            foreach (var wheel in wheels) wheel.brakeTorque = brake;
+            foreach (var wheel in motor) wheel.motorTorque = torque;
+
+            rearGrip = Mathf.MoveTowards(rearGrip, Skidding ? .55f : 1f, 2.5f * Time.fixedDeltaTime);
+            var rear = Curve(1.75f * rearGrip, Skidding ? .62f : .42f);
+            wheels[2].sidewaysFriction = rear;
+            wheels[3].sidewaysFriction = rear;
+
+            AntiRollBars();
+            if (GroundedWheels > 0) Body.AddForce(-transform.up * Downforce * Mathf.Abs(speed));
         }
-        public void ChangeDirection(int direction) { if (Mathf.Abs(Speed) < .8f) { Direction = direction; Cruise = false; } }
+
+        void AntiRollBars()
+        {
+            AntiRoll(wheels[0], wheels[1]);
+            AntiRoll(wheels[2], wheels[3]);
+        }
+
+        // Fuerzas opuestas en los puntos de apoyo: reparte la carga entre el lado cargado y el descargado.
+        void AntiRoll(WheelCollider left, WheelCollider right)
+        {
+            float difference = GroundForce(left) - GroundForce(right);
+            float force = difference * AntiRollFactor;
+            Body.AddForceAtPosition(left.transform.up * -force, left.transform.position);
+            Body.AddForceAtPosition(right.transform.up * force, right.transform.position);
+        }
+
+        static float GroundForce(WheelCollider wheel)
+        {
+            if (!wheel.GetGroundHit(out var hit)) return 0f;
+            return Mathf.Clamp(hit.force, 0f, 60000f);
+        }
+
+        void LateUpdate()
+        {
+            if (visuals == null) return;
+            for (int i = 0; i < visuals.Length; i++) Follow(i);
+        }
+
+        void Follow(int index)
+        {
+            var pivot = visuals[index];
+            if (pivot == null || wheels[index] == null) return;
+            wheels[index].GetWorldPose(out var position, out var rotation);
+            var localPosition = transform.InverseTransformPoint(position);
+            if (centered[index]) localPosition.x = 0;
+            pivot.localPosition = localPosition;
+            pivot.localRotation = Quaternion.Inverse(transform.rotation) * rotation;
+        }
+
+        public bool ChangeDirection(int direction)
+        {
+            if (Mathf.Abs(Speed) > MinimumDirectionChangeSpeed) return false;
+            Direction = direction;
+            Cruise = false;
+            return true;
+        }
+
         public void ResetToRoad()
         {
-            Body.linearVelocity = Vector3.zero; Body.angularVelocity = Vector3.zero; Cruise = false;
-            Body.position = new Vector3(Mathf.Round(Body.position.x / 64) * 64 + 3, 0, Mathf.Round(Body.position.z / 64) * 64 + 22);
+            Body.linearVelocity = Vector3.zero;
+            Body.angularVelocity = Vector3.zero;
+            Body.Sleep();
+            Cruise = false;
+            Body.position = new Vector3(Mathf.Round(Body.position.x / 64) * 64 + 3, .1f, Mathf.Round(Body.position.z / 64) * 64 + 22);
             Body.rotation = Quaternion.identity;
+            Body.WakeUp();
+            steerAngle = 0;
+            ThrottleAnalog = BrakeAnalog = 0;
+            if (Wheel != null) Wheel.Value = 0;
         }
+
         void OnCollisionEnter(Collision collision)
         {
             if (collision.relativeVelocity.magnitude < 1.5f || Time.time - lastCollision < 1) return;
-            lastCollision = Time.time; Collisions++; Cruise = false;
-            Body.linearVelocity *= .15f;
+            lastCollision = Time.time;
+            Collisions++;
+            Cruise = false;
+            Body.linearVelocity *= .45f;
             Player?.Pulse(true); Player?.Pulse(false);
         }
     }

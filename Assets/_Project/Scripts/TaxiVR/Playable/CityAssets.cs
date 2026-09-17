@@ -20,7 +20,13 @@ namespace TaxiVR.Playable
             var go = GameObject.CreatePrimitive(type); go.name = name; go.transform.SetParent(parent, false);
             go.transform.localPosition = position; go.transform.localScale = size;
             go.GetComponent<Renderer>().sharedMaterial = material;
-            if (!collider) { var c = go.GetComponent<Collider>(); c.enabled = false; Object.Destroy(c); }
+            // El collider se desactiva, nunca se destruye: destruirlo aqui reindexa los componentes
+            // del objeto y corrompe la serializacion de la escena horneada.
+            if (!collider)
+            {
+                var component = go.GetComponent<Collider>();
+                if (component != null) component.enabled = false;
+            }
             return go;
         }
         public static TextMesh Label(string name, Transform parent, Vector3 position, string text, float size, Color color, Font font)

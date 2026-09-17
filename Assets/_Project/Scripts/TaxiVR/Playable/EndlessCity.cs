@@ -16,7 +16,17 @@ namespace TaxiVR.Playable
         Vector2Int last = new(int.MinValue, int.MinValue);
         public Vector3 AbsolutePosition => Taxi.position + new Vector3(OriginSector.x * 64f, 0, OriginSector.y * 64f);
         public Vector3 LocalPosition(Vector2Int node) => new((node.x - OriginSector.x) * 64f, 0, (node.y - OriginSector.y) * 64f);
-        void Start() { Refresh(); }
+        void Start() { Adopt(); Refresh(); }
+        public void Adopt()
+        {
+            foreach (var sector in GetComponentsInChildren<CitySector>(true))
+            {
+                var local = sector.transform.localPosition;
+                var key = new Vector2Int(Mathf.RoundToInt(local.x / CityMath.Block), Mathf.RoundToInt(local.z / CityMath.Block));
+                sector.transform.localPosition = LocalPosition(key);
+                if (!sectors.ContainsKey(key)) sectors.Add(key, sector);
+            }
+        }
         void Update()
         {
             if (Taxi == null) return;
@@ -61,21 +71,23 @@ namespace TaxiVR.Playable
 
     public sealed class CitySector : MonoBehaviour
     {
-        Transform[] plots = new Transform[4];
-        GameObject[,] variations = new GameObject[4, 2];
-        TextMesh street;
+        [SerializeField] Transform[] plots = new Transform[4];
+        [SerializeField] GameObject[] buildings = new GameObject[4];
+        [SerializeField] GameObject[] houses = new GameObject[4];
+        [SerializeField] TextMesh street;
         public void Place(Vector2Int key, Vector3 position)
         {
             transform.position = position; name = $"Sector {key.x},{key.y}";
             int hash = CityMath.Hash(key.x, key.y);
-            for (int i = 0; i < plots.Length; i++)
+            for (int i = 0; i < buildings.Length; i++)
             {
                 bool house = ((hash >> i) & 3) == 0;
-                variations[i, 0].SetActive(!house); variations[i, 1].SetActive(house);
+                if (buildings[i] != null) buildings[i].SetActive(!house);
+                if (houses[i] != null) houses[i].SetActive(house);
             }
-            street.text = $"AV. {key.x + 101}\nCALLE {key.y + 101}";
+            if (street != null) street.text = $"AV. {key.x + 101}\nCALLE {key.y + 101}";
         }
-        public void Build(CityAssets a)
+        public void Build(CityAssets a, bool withLods = true)
         {
             Shape.Part("Road surface", transform, new Vector3(26, -.15f, 26), new Vector3(64, .3f, 64), a.Asphalt, collider:true);
             Shape.Part("Sidewalk block", transform, new Vector3(32, .1f, 32), new Vector3(48, .2f, 48), a.Pavement, collider:true);
@@ -94,16 +106,19 @@ namespace TaxiVR.Playable
                 var p = new Vector3(i % 2 == 0 ? 18 : 46, .21f, i < 2 ? 18 : 46);
                 plots[i] = new GameObject("Lot").transform; plots[i].SetParent(transform, false); plots[i].localPosition = p;
                 float h = i == 3 ? 23 : i == 2 ? 20 : 15;
-                variations[i, 0] = Shape.Model(a.Buildings[i % a.Buildings.Length], plots[i], Vector3.zero, h, i < 2 ? 180 : 0);
-                var buildingCollider = variations[i, 0].AddComponent<BoxCollider>();
-                var renderers = variations[i, 0].GetComponentsInChildren<Renderer>(); var bounds = renderers[0].bounds;
+                buildings[i] = Shape.Model(a.Buildings[i % a.Buildings.Length], plots[i], Vector3.zero, h, i < 2 ? 180 : 0);
+                var buildingCollider = buildings[i].AddComponent<BoxCollider>();
+                var renderers = buildings[i].GetComponentsInChildren<Renderer>(); var bounds = renderers[0].bounds;
                 foreach (var renderer in renderers) bounds.Encapsulate(renderer.bounds);
-                buildingCollider.center = variations[i, 0].transform.InverseTransformPoint(bounds.center); buildingCollider.size = bounds.size;
-                var distant = Shape.Part("Distant building", variations[i, 0].transform, buildingCollider.center, bounds.size, a.DistantBuilding);
-                var lod = variations[i, 0].AddComponent<LODGroup>();
-                lod.SetLODs(new[] { new LOD(.19f, renderers), new LOD(.008f, new[] { distant.GetComponent<Renderer>() }) });
-                lod.RecalculateBounds();
-                variations[i, 1] = House(plots[i], a, i);
+                buildingCollider.center = buildings[i].transform.InverseTransformPoint(bounds.center); buildingCollider.size = bounds.size;
+                if (withLods)
+                {
+                    var distant = Shape.Part("Distant building", buildings[i].transform, buildingCollider.center, bounds.size, a.DistantBuilding);
+                    var lod = buildings[i].AddComponent<LODGroup>();
+                    lod.SetLODs(new[] { new LOD(.19f, renderers), new LOD(.008f, new[] { distant.GetComponent<Renderer>() }) });
+                    lod.RecalculateBounds();
+                }
+                houses[i] = House(plots[i], a, i);
                 for (int j = 0; i < 2 && j < 2; j++)
                 {
                     var tree = new Vector3(i % 2 == 0 ? 9.5f : 54.5f, .2f, 20 + j * 22);
@@ -167,7 +182,7 @@ namespace TaxiVR.Playable
     public sealed class CityPedestrian : MonoBehaviour
     {
         public float Offset;
-        Transform leftLeg, rightLeg, leftArm, rightArm;
+        [SerializeField] Transform leftLeg, rightLeg, leftArm, rightArm;
         public void Build(CityAssets a, int index)
         {
             var shirt = a.Facades[index % a.Facades.Length];
@@ -185,6 +200,7 @@ namespace TaxiVR.Playable
         }
         void Update()
         {
+            if (leftLeg == null || rightLeg == null || leftArm == null || rightArm == null) return;
             float distance = Mathf.Repeat(Time.time * 1.15f + Offset, 176);
             int side = Mathf.FloorToInt(distance / 44); float p = distance % 44;
             transform.localPosition = side switch { 0 => new Vector3(10 + p, .2f, 10), 1 => new Vector3(54, .2f, 10 + p), 2 => new Vector3(54 - p, .2f, 54), _ => new Vector3(10, .2f, 54 - p) };

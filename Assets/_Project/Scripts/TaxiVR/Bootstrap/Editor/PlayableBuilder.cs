@@ -88,6 +88,61 @@ namespace TaxiVR.Playable.Editor
             Verify();
         }
         static GameObject Load(string path) => AssetDatabase.LoadAssetAtPath<GameObject>(path) ?? throw new InvalidOperationException("Missing model " + path);
+        public const int BakedRadius = 2;
+        // La ciudad es procedural (variaciones por hash) y el reciclaje la reescribe, asi que no se hornea en la
+        // escena jugable: hacerlo produce un level0 corrupto en el player. Esta vista previa existe para poder
+        // inspeccionar y ajustar el distrito en el editor sin tocar la escena del juego.
+        [MenuItem("TaxiVR/Playable/0 - Vista previa de la ciudad (escena nueva)")]
+        public static void PreviewCity()
+        {
+            if (EditorApplication.isPlaying) throw new InvalidOperationException("Deten el Play Mode antes de generar la vista previa.");
+            var assets = AssetDatabase.LoadAssetAtPath<CityAssets>(DataFolder + "/CityAssets.asset");
+            if (assets == null) throw new InvalidOperationException("Falta CityAssets: ejecuta antes '1 - Create or update playable scene'.");
+            EditorSceneManager.SaveOpenScenes();
+            EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            BakeCity(assets);
+            var sun = new GameObject("Luz de la maqueta").AddComponent<Light>();
+            sun.type = LightType.Directional; sun.intensity = 1.4f; sun.color = new Color(1, .92f, .78f);
+            sun.transform.rotation = Quaternion.Euler(42, -35, 0); sun.shadows = LightShadows.Soft;
+            RenderSettings.sun = sun; RenderSettings.ambientMode = AmbientMode.Flat; RenderSettings.ambientLight = new Color(.57f, .66f, .73f);
+            RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Linear; RenderSettings.fogColor = new Color(.62f, .73f, .78f);
+            RenderSettings.fogStartDistance = 105; RenderSettings.fogEndDistance = 175;
+            var camera = Camera.main;
+            if (camera != null)
+            {
+                camera.transform.position = new Vector3(3, 14, -12);
+                camera.transform.rotation = Quaternion.Euler(28, 0, 0);
+                camera.farClipPlane = 400;
+            }
+            Debug.Log("Vista previa de la ciudad generada en una escena nueva y sin guardar. Es solo para inspeccionar: no la incluyas en la compilacion.");
+        }
+        // Solo para la vista previa.
+        static void BakeCity(CityAssets assets)
+        {
+            var root = new GameObject("Ciudad");
+            var city = root.AddComponent<EndlessCity>();
+            city.Assets = assets;
+            for (int x = -BakedRadius; x <= BakedRadius; x++)
+                for (int z = -BakedRadius; z <= BakedRadius; z++)
+                {
+                    var sector = new GameObject("Sector").AddComponent<CitySector>();
+                    sector.transform.SetParent(root.transform, false);
+                    sector.Build(assets, withLods: false);
+                    sector.Place(new Vector2Int(x, z), new Vector3(x * CityMath.Block, 0, z * CityMath.Block));
+                    Disconnect(sector.gameObject);
+                }
+        }
+        // Las instancias de prefab creadas por codigo son una fuente conocida de referencias fragiles al
+        // serializar; se desconectan y quedan como contenido plano.
+        static void Disconnect(GameObject root)
+        {
+            var instances = root.GetComponentsInChildren<Transform>(true)
+                .Where(t => PrefabUtility.IsAnyPrefabInstanceRoot(t.gameObject))
+                .Select(t => t.gameObject)
+                .ToArray();
+            foreach (var instance in instances)
+                PrefabUtility.UnpackPrefabInstance(instance, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        }
         static Material Material(string name, Color color)
         {
             string path = DataFolder + "/" + name + ".mat";
@@ -111,8 +166,51 @@ namespace TaxiVR.Playable.Editor
             var xr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Standalone);
             Require(xr.GetFeature<HandTracking>()?.enabled == true, "OpenXR Hand Tracking feature");
             Require(xr.GetFeature<OculusTouchControllerProfile>()?.enabled == true, "Touch controller profile");
-            File.WriteAllText("Logs/TaxiConfigurationChecks.txt", "PASS sector boundaries\nPASS mutually exclusive traffic signals\nPASS wheel seam\nPASS A* connected shortest path\nPASS imported models\nPASS UI resources\nPASS OpenXR hands and Touch profiles\n");
+            File.WriteAllText("Logs/TaxiConfigurationChecks.txt", "PASS sector boundaries\nPASS mutually exclusive traffic signals\nPASS wheel seam\nPASS A* connected shortest path\nPASS imported models\nPASS UI resources\nPASS OpenXR hands and Touch profiles\nINFO " + SimulatorStatus() + "\n");
         }
+        const string XrSimMenu = "Meta/Meta XR Simulator";
+        const string XrSimSelectedRuntimeKey = "XR_SELECTED_RUNTIME_JSON";
+
+        // El simulador se activa con variables de entorno del proceso del Editor (no toca el sistema): deja
+        // XR_SELECTED_RUNTIME_JSON apuntando al runtime del simulador. Sin eso, el juego arranca en escritorio.
+        public static bool SimulatorActivated()
+        {
+            var selected = Environment.GetEnvironmentVariable(XrSimSelectedRuntimeKey);
+            return !string.IsNullOrEmpty(selected) && selected.IndexOf("meta_openxr_simulator", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        public static string SimulatorStatus()
+        {
+            var selected = Environment.GetEnvironmentVariable(XrSimSelectedRuntimeKey);
+            return "Simulador XR " + (SimulatorActivated() ? "activado" : "NO activado") +
+                " (XR_SELECTED_RUNTIME_JSON = " + (string.IsNullOrEmpty(selected) ? "vacio" : selected) + ")";
+        }
+
+        [MenuItem("TaxiVR/Playable/4 - Activar simulador XR")]
+        public static void ActivateSimulator()
+        {
+            if (SimulatorActivated())
+            {
+                Debug.Log(SimulatorStatus());
+                return;
+            }
+            if (!EditorApplication.ExecuteMenuItem(XrSimMenu + "/Activate"))
+                Debug.LogWarning("No se pudo ejecutar '" + XrSimMenu + "/Activate'. Comprueba que el Meta XR Simulator este instalado: Window > Meta > Meta XR Simulator > Status.");
+            else Debug.Log(SimulatorStatus());
+        }
+
+        [MenuItem("TaxiVR/Playable/5 - Jugar con simulador XR")]
+        public static void PlayWithSimulator()
+        {
+            if (EditorApplication.isPlaying)
+            {
+                Debug.Log("Ya estas en Play Mode.");
+                return;
+            }
+            ActivateSimulator();
+            EditorApplication.isPlaying = true;
+        }
+
         [MenuItem("TaxiVR/Playable/3 - Build Windows playable")]
         public static void Build()
         {

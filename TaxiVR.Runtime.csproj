@@ -62,6 +62,7 @@
     <Compile Include="Assets\_Project\Scripts\TaxiVR\Playable\FootProtocol.cs" />
     <Compile Include="Assets\_Project\Scripts\TaxiVR\Bootstrap\TaxiVRFeatureFlags.cs" />
     <Compile Include="Assets\_Project\Scripts\TaxiVR\Playable\EndlessCity.cs" />
+    <Compile Include="Assets\_Project\Scripts\TaxiVR\Playable\DebugOverlay.cs" />
     <Compile Include="Assets\_Project\Scripts\TaxiVR\Playable\PlayableVerification.cs" />
     <Compile Include="Assets\_Project\Scripts\TaxiVR\Playable\PlayerHands.cs" />
     <Compile Include="Assets\_Project\Scripts\TaxiVR\Playable\FootReceiver.cs" />

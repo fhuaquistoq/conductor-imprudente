@@ -18,7 +18,6 @@ namespace TaxiVR.Playable
         public float LeftTrigger { get; private set; }
         public float RightTrigger { get; private set; }
         public string TrackingStatus { get; private set; } = "TECLADO + RATON";
-        public string HoverCaption { get; private set; }
         public Vector3 SeatEye = new(-.36f, 1.06f, -.28f);
         readonly List<XRHandSubsystem> subsystems = new();
         readonly HandState[] hands = { new(), new() };
@@ -184,16 +183,23 @@ namespace TaxiVR.Playable
             TrackingStatus = "TECLADO + RATON";
             var mouse = Mouse.current;
             if (mouse == null) return;
-            if (mouse.rightButton.isPressed)
+            var keys = Keyboard.current;
+            bool locked = Cursor.lockState == CursorLockMode.Locked;
+            if (keys?.escapeKey.wasPressedThisFrame == true && locked) { ReleaseCursor(); SetPaused(true); }
+            else if (mouse.leftButton.wasPressedThisFrame && !locked) { CaptureCursor(); SetPaused(false); }
+            locked = Cursor.lockState == CursorLockMode.Locked;
+            if (locked || mouse.rightButton.isPressed)
             {
-                var delta = mouse.delta.ReadValue(); yaw += delta.x * .12f; pitch = Mathf.Clamp(pitch - delta.y * .12f, -65, 70);
+                var look = mouse.delta.ReadValue() * (locked ? .09f : .12f);
+                yaw += look.x;
+                pitch = Mathf.Clamp(pitch - look.y, -70, 70);
             }
-            if (Keyboard.current?.hKey.wasPressedThisFrame == true) { yaw = 0; pitch = 0; }
-            View.transform.localPosition = SeatEye; View.transform.localRotation = Quaternion.Euler(pitch, yaw, 0);
-            Ray ray = View.ScreenPointToRay(mouse.position.ReadValue());
+            if (keys?.hKey.wasPressedThisFrame == true) { yaw = 0; pitch = 0; }
+            View.transform.localPosition = SeatEye;
+            View.transform.localRotation = Quaternion.Euler(pitch, yaw, 0);
+            Ray ray = locked ? View.ViewportPointToRay(new Vector3(.5f, .5f, 0)) : View.ScreenPointToRay(mouse.position.ReadValue());
             CockpitInteractable hover = null;
-            if (Physics.Raycast(ray, out var hit, 1.5f, 1 << 8, QueryTriggerInteraction.Collide)) hover = hit.collider.GetComponentInParent<CockpitInteractable>();
-            HoverCaption = hover == null ? string.Empty : hover.Caption;
+            if (Physics.Raycast(ray, out var hit, 1.6f, 1 << 8, QueryTriggerInteraction.Collide)) hover = hit.collider.GetComponentInParent<CockpitInteractable>();
             if (mouse.leftButton.wasPressedThisFrame && hover != null)
             {
                 desktopDistance = Mathf.Clamp(Vector3.Distance(View.transform.position, hit.point), .25f, .8f);
@@ -210,6 +216,15 @@ namespace TaxiVR.Playable
                     if (desktopHeld.Kind != CockpitKind.Loose) desktopHeld.DesktopAdjust(mouse.delta.ReadValue().x * .55f + mouse.scroll.ReadValue().y * .025f);
                 }
             }
+        }
+        static void CaptureCursor() { Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false; }
+        static void ReleaseCursor() { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+        static void SetPaused(bool paused)
+        {
+            var drive = PlayableRoot.Instance == null ? null : PlayableRoot.Instance.Drive;
+            if (drive == null) return;
+            drive.Paused = paused;
+            if (paused) drive.Cruise = false;
         }
     }
 }

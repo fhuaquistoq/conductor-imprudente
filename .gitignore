@@ -47,3 +47,11 @@ LPT*
 __pycache__/
 *.pyc
 *.spec
+*.egg-info/
+
+# Estado local de herramientas (no es contenido del proyecto)
+/.atl/
+/.codegraph/
+/.codex/
+/.commandcode/
+/.pi/

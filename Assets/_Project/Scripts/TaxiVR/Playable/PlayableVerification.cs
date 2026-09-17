@@ -25,6 +25,7 @@ namespace TaxiVR.Playable
             yield return new WaitForSeconds(3);
             var root = PlayableRoot.Instance; var drive = root.Drive; var city = root.City;
             Check(city.LoadedSectors == 49, "49 sectors loaded with fixed capacity");
+            Check(city.GetComponentsInChildren<CitySector>(true).Length == city.LoadedSectors, "City sectors registered without duplicates");
             Check(root.Player.View != null, "First person camera exists");
             Check(CockpitInteractable.All.Count >= 15, "Cockpit interactions connected");
             Capture(root.Player.View, "01-cockpit.png");
@@ -60,8 +61,13 @@ namespace TaxiVR.Playable
             food.Release(98); Check(!food.GetComponent<Rigidbody>().isKinematic, "Released food restores physics"); food.ReturnHome();
             var gpsButton = CockpitInteractable.All.First(x => x.name == "GPS on"); gpsButton.Press(); Check(!root.GPS.Powered, "GPS button toggles power");
             root.GPS.Powered = true;
-            drive.Body.position = city.LocalPosition(root.GPS.Destination) + new Vector3(3, 0, 14); drive.Body.linearVelocity = Vector3.zero;
-            yield return new WaitForSeconds(2.5f);
+            drive.Body.position = city.LocalPosition(root.GPS.Destination) + new Vector3(3, 0, 14);
+            for (float elapsed = 0; elapsed < 6f && root.GPS.Deliveries == 0; elapsed += Time.deltaTime)
+            {
+                drive.Body.linearVelocity = Vector3.zero;
+                drive.Body.angularVelocity = Vector3.zero;
+                yield return null;
+            }
             Check(root.GPS.Deliveries == 1, "Stopping at GPS destination completes a delivery");
             drive.ResetToRoad();
             yield return new WaitForSeconds(.4f);

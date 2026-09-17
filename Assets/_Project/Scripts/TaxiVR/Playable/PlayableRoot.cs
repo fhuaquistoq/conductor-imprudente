@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.XR;
 using UnityEngine.XR.Management;
 
 namespace TaxiVR.Playable
@@ -11,7 +12,8 @@ namespace TaxiVR.Playable
     {
         public static PlayableRoot Instance { get; private set; }
         public CityAssets Assets;
-        public bool DesktopInEditor = true;
+        public bool ForceDesktop;
+        public bool ShowDebugInEditor;
         public TaxiDrive Drive { get; private set; }
         public EndlessCity City { get; private set; }
         public PlayerHands Player { get; private set; }
@@ -25,7 +27,7 @@ namespace TaxiVR.Playable
         TextMesh speedText, radioText;
         float volume = .3f;
         int station;
-        bool radioOn = true, debug = true;
+        bool radioOn = true;
         Transform cabin;
         bool initializedXR;
         void Awake()
@@ -38,28 +40,39 @@ namespace TaxiVR.Playable
         }
         IEnumerator Start()
         {
-            bool desktop = Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-desktop") >= 0 || Application.isEditor && DesktopInEditor;
-            Player.Desktop = desktop;
+            bool desktop = ForceDesktop || Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-desktop") >= 0;
             if (!desktop)
             {
                 var manager = XRGeneralSettings.Instance?.Manager;
                 if (manager != null)
                 {
                     yield return manager.InitializeLoader();
-                    if (manager.activeLoader != null) { manager.StartSubsystems(); initializedXR = true; }
-                    else { Player.Desktop = true; Debug.LogWarning("No OpenXR headset available; desktop controls enabled."); }
+                    if (manager.activeLoader != null)
+                    {
+                        manager.StartSubsystems();
+                        // El visor tarda unos frames en engancharse, sobre todo el simulador. Antes se daba por
+                        // perdido tras un solo frame y el juego caia a escritorio sin avisar de nada util.
+                        for (int frame = 0; frame < 120 && !XRSettings.isDeviceActive; frame++) yield return null;
+                        initializedXR = XRSettings.isDeviceActive;
+                        if (!initializedXR)
+                        {
+                            manager.StopSubsystems(); manager.DeinitializeLoader();
+                            Debug.LogWarning("No hay visor XR activo. Comprueba que el Meta XR Simulator este abierto y activado (Window > Meta > Meta XR Simulator > Activate), o que el Quest este conectado y con Link iniciado. Se activan los controles de teclado y raton.");
+                        }
+                    }
+                    else Debug.LogWarning("No hay runtime XR disponible. Activa el simulador (Window > Meta > Meta XR Simulator > Activate) o conecta el Quest. Se activan los controles de teclado y raton.");
                 }
-                else Player.Desktop = true;
+                desktop = !initializedXR;
             }
+            Player.Desktop = desktop;
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-verify") >= 0) gameObject.AddComponent<PlayableVerification>();
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-debug") >= 0 || Application.isEditor && ShowDebugInEditor) gameObject.AddComponent<DebugOverlay>();
         }
         void BuildWorld()
         {
-            var car = new GameObject("Taxi"); car.transform.position = new Vector3(3, 0, 22);
-            var body = car.AddComponent<Rigidbody>(); body.mass = 1100; body.interpolation = RigidbodyInterpolation.Interpolate;
-            body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; body.useGravity = false;
-            body.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-            var collision = car.AddComponent<BoxCollider>(); collision.center = new Vector3(0, .52f, 0); collision.size = new Vector3(1.65f, .8f, 3.95f);
+            var car = new GameObject("Taxi"); car.transform.position = new Vector3(3, .1f, 22);
+            car.AddComponent<Rigidbody>();
+            var collision = car.AddComponent<BoxCollider>(); collision.center = new Vector3(0, .62f, .02f); collision.size = new Vector3(1.62f, .92f, 3.9f);
             car.layer = 9;
             Drive = car.AddComponent<TaxiDrive>();
             cabin = Instantiate(Assets.Taxi, car.transform).transform;
@@ -72,6 +85,7 @@ namespace TaxiVR.Playable
             foreach (var cam in cabin.GetComponentsInChildren<Camera>(true)) cam.enabled = false;
             foreach (var listener in cabin.GetComponentsInChildren<AudioListener>(true)) listener.enabled = false;
             foreach (var col in cabin.GetComponentsInChildren<Collider>()) col.enabled = false;
+            Drive.BindVisualWheels(cabin);
             Drive.Feet = Feet = car.AddComponent<FootReceiver>();
             Skid = car.AddComponent<SkidController>();
             Skid.Drive = Drive;
@@ -84,7 +98,9 @@ namespace TaxiVR.Playable
             Player.View.nearClipPlane = .025f; Player.View.farClipPlane = 185; Player.View.fieldOfView = 76;
             Player.View.backgroundColor = RenderSettings.fogColor; Player.View.clearFlags = CameraClearFlags.SolidColor;
             Player.View.gameObject.AddComponent<AudioListener>(); Drive.Player = Player;
-            City = new GameObject("Ciudad infinita").AddComponent<EndlessCity>(); City.Assets = Assets; City.Taxi = car.transform;
+            City = FindAnyObjectByType<EndlessCity>();
+            if (City == null) City = new GameObject("Ciudad infinita").AddComponent<EndlessCity>();
+            City.Assets = Assets; City.Taxi = car.transform;
             BuildCockpit(); BuildAudio();
             for (int i = 0; i < 8; i++)
             {
@@ -123,7 +139,9 @@ namespace TaxiVR.Playable
         void BuildCockpit()
         {
             Drive.Wheel = Bind("PIVOT_VOLANTE", CockpitKind.Wheel, "Volante: agarrar y girar", .17f);
-            Bind("PIVOT_CAMBIOS_DR", CockpitKind.Gear, "Cambio D / R (detenerse)", .11f).Changed = value => Drive.ChangeDirection(value > 0 ? 1 : -1);
+            var gears = Bind("PIVOT_CAMBIOS_DR", CockpitKind.Gear, "Cambio D / R", .11f);
+            gears.Value = 1;
+            gears.Changed = value => { if (Drive.ChangeDirection(value > 0 ? 1 : -1)) gears.Value = value; };
             var knob = Bind("PIVOT_RADIO_-0.067", CockpitKind.Knob, "Volumen: agarrar y girar", .055f); knob.Value = volume;
             knob.Changed = v => volume = v;
             var tune = Bind("PIVOT_RADIO_0.137", CockpitKind.Knob, "Sintonizar emisora", .05f);
@@ -216,50 +234,9 @@ namespace TaxiVR.Playable
         public void Click() { if (effects != null && click != null) effects.PlayOneShot(click, .6f); }
         void Update()
         {
-            if (Keyboard.current?.f1Key.wasPressedThisFrame == true) debug = !debug;
             if (radio != null) { radio.volume = radioOn ? volume * .4f : 0; engine.pitch = .8f + Mathf.Abs(Drive.Speed) * .065f + (Skid == null ? 0 : Skid.Intensity * .5f); }
             speedText.text = $"{Mathf.Abs(Drive.Speed) * 3.6f:00} km/h  {(Drive.Direction > 0 ? "D" : "R")}";
             radioText.text = radioOn ? $"{new[] { "COSTA FM", "NOCHE JAZZ", "RUTA FM" }[station]}  {volume * 100:0}%" : "RADIO OFF";
-        }
-        void OnGUI()
-        {
-            if (Player == null) return;
-            float scale = Mathf.Clamp(Screen.width / 1280f, .7f, 2); GUI.matrix = Matrix4x4.Scale(Vector3.one * scale);
-            var style = new GUIStyle(GUI.skin.box) { fontSize = 14, alignment = TextAnchor.UpperLeft, padding = new RectOffset(16, 16, 12, 12) };
-            style.normal.textColor = new Color(.88f, .95f, .97f);
-            GUI.Box(new Rect(20, 20, 390, 65), $"TAXI VR  /  CIUDAD ABIERTA\n{Status}  |  Entregas {GPS.Deliveries}  |  {Mathf.Abs(Drive.Speed)*3.6f:0} km/h", style);
-            if (debug) GUI.Box(new Rect(20, 95, 390, 320), DebugText(), style);
-            var warning = Feet == null ? null : Feet.Warning;
-            if (!string.IsNullOrEmpty(warning)) GUI.Box(new Rect(Screen.width / scale / 2 - 210, 24, 420, 40), warning, style);
-            if (!string.IsNullOrEmpty(Player.HoverCaption)) GUI.Box(new Rect(Screen.width / scale / 2 - 210, Screen.height / scale - 75, 420, 48), Player.HoverCaption, style);
-            if (Drive.Paused) GUI.Box(new Rect(Screen.width / scale / 2 - 180, Screen.height / scale / 2 - 40, 360, 80), "PAUSA\nESC para continuar", style);
-            GUI.matrix = Matrix4x4.identity;
-        }
-        string DebugText()
-        {
-            var machine = Feet == null ? null : Feet.Machine;
-            string Side(FootState state, bool valid) => valid ? state.ToString() : "sin datos";
-            return string.Join("\n", new[]
-            {
-                $"FPS {1f / Mathf.Max(.0001f, Time.smoothDeltaTime):0}",
-                $"Acelerador {Drive.Throttle:0.00}   Freno {Drive.Brake:0.00}   Derrape {(Drive.Skidding ? "si" : "no")}",
-                $"Pie verde {Side(machine?.Green ?? FootState.Unknown, machine != null && machine.GreenValid)}",
-                $"Pie rojo {Side(machine?.Red ?? FootState.Unknown, machine != null && machine.RedValid)}",
-                $"Pies armados {(machine != null && machine.Armed ? "si" : "no")}   valido {(machine != null && machine.TrackingValid ? "si" : "no")}",
-                $"Receptor de pies {(Feet == null ? "ausente" : Feet.SocketBound ? Feet.TrackingReceived ? "recibiendo" : "a la escucha" : "sin puerto")}",
-                $"Volante {Drive.Wheel?.Value ?? 0:0} grados   {Mathf.Abs(Drive.Speed) * 3.6f:0} km/h   {(Drive.Direction > 0 ? "D" : "R")}",
-                $"Colisiones {Drive.Collisions}",
-                string.Empty,
-                "W acelerar  /  S o ESPACIO frenar",
-                "A / D girar  /  Q reversa  /  E avanzar",
-                "R volver a la calle  /  H centrar vista",
-                "Raton derecho + mover: mirar",
-                "Clic: tocar  /  mantener y arrastrar: agarrar",
-                "Rueda del raton: ajustar / acercar objetos",
-                "C crucero suave  /  ESC pausa  /  F1 debug",
-                "VR: grip o pinza para agarrar; dedo para tocar",
-                "Pies: verde acelera, rojo frena",
-            });
         }
         void OnDestroy()
         {
