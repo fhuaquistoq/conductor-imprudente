@@ -17,6 +17,7 @@ En Unity, abrir la escena jugable y pulsar Play. Por defecto el Editor usa escri
 | Tocar un botón | Clic izquierdo | Acercar la punta del índice |
 | Girar volante | A/D, o agarrar y arrastrar | Agarrar el aro con una o dos manos y girar |
 | Acelerar / frenar | W / S o Espacio | Gatillo derecho / izquierdo |
+| Acelerar / frenar con los pies | `FootTracker.exe` o `emit_mock` | Marcadores verde (acelera) y rojo (frena) |
 | Conducción sin mandos | C activa crucero suave | Botones físicos CRUCERO y FRENAR |
 | Avanzar / reversa | E / Q, con el taxi detenido | Agarrar y desplazar la palanca D/R |
 | Ajustar radio o espejo | Agarrar y arrastrar; rueda del ratón | Agarrar y girar muñeca |
@@ -33,11 +34,24 @@ El GPS dibuja las calles, la ruta azul y el destino amarillo. Estacionar **dos s
 - Edificios de DowntownCity, casas sencillas, patios, árboles, veredas y cruces peatonales. Los peatones estilizados caminan alrededor de las manzanas cercanas. Ocho vehículos circulan por carriles y frenan ante semáforos y obstáculos.
 - Interior del modelo existente `Taxi_Full.fbx`, cámara sentada, volante con agarre a dos manos, palanca D/R, radio con tres pistas sintetizadas, volumen, GPS ajustable, retrovisores con cámaras traseras, ventana izquierda, café, hamburguesa y papel agarrables.
 - OpenXR, mandos Touch y XR Hands. Los dedos de las manos reales siguen las articulaciones; con mandos se representan manos virtuales. Se libera el agarre cuando se pierde tracking. La pérdida de tracking de cabeza después de una sesión activa frena el taxi.
-- Controles provisionales de aceleración y frenado; los pedales y la webcam están fuera de esta entrega.
+- Controles provisionales de aceleración y frenado por gatillo o teclado, más el **tracking de pies** por webcam: `FootTracker/` clasifica dos marcadores (rojo frena, verde acelera) y envía el estado por UDP local a 30 Hz. Los pedales arrancan **desarmados** con ambos pies apoyados y se arman al levantar un pie por primera vez; un marcador perdido es `unknown`, nunca `down`, y una pérdida prolongada va a neutro. El derrape con ambos pedales añade humo, chirrido y pérdida de agarre.
 
 ## Alcance y hardware
 
 Esta entrega es un prototipo de conducción e interacción. Los peatones usan modelos sencillos articulados; el tráfico recorre carriles rectos; los retrovisores muestran cámaras traseras ajustables. No incluye aún pasajeros narrativos, lesiones, averías, peticiones ni evaluación final de la especificación extensa.
+
+### Pedales por visión artificial
+
+El ejecutable no abre la cámara: `FootTracker/` es un proceso Python independiente que clasifica los marcadores y envía por UDP. Para probarlo sin cámara:
+
+```powershell
+cd FootTracker
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m tools.emit_mock --script truth-table
+```
+
+Con cámara real: `.\.venv\Scripts\python.exe -m foottracker --camera 0 --preview`, dejando los pies apoyados ~0,75 s para calibrar. La clasificación real con webcam es una comprobación manual de hardware; los tests usan imágenes sintéticas y el contrato de cable se verifica con un receptor UDP real.
 
 Meta documenta el tracking de manos de Quest por Link en **Unity Editor** como ayuda de desarrollo, sin garantizarlo en el ejecutable Windows. La ruta PCVR del ejecutable admite manos virtuales controladas por Touch. Si el runtime expone `XR_EXT_hand_tracking`, la aplicación usa sus articulaciones; de lo contrario muestra el estado de entrada disponible. No se presenta la simulación como prueba de manos reales.
 
@@ -45,9 +59,10 @@ Referencia: https://developers.meta.com/horizon/documentation/unity/unity-handtr
 
 ## Verificación reproducible
 
-- Tests de edición: `TaxiVR.Tests.EditMode`, incluidos sectores negativos, semáforos excluyentes, salto angular del volante, hash estable y ruta A* conectada.
+- Tests de edición: `TaxiVR.Tests.EditMode`, incluidos sectores negativos, semáforos excluyentes, salto angular del volante, hash estable, ruta A* conectada y la máquina de pedales (tabla completa, armado, `unknown`, debounce, pérdida y recuperación).
+- Tests Python: `python -m pytest` en `FootTracker/`, con clasificación sobre imágenes sintéticas y contrato de cable contra un receptor UDP real.
 - Verificaciones de configuración: menú **TaxiVR > Playable > 2 - Verify configuration**, resultado en `Logs/TaxiConfigurationChecks.txt`.
-- Integración del ejecutable: `TaxiVR.exe -taxivr-desktop -taxivr-verify -logFile verification-player.log`. Ejecuta conducción, reciclaje, cambio de origen, agarre, volumen, GPS y entrega; genera `Verification/results.txt` y tres capturas junto a la build, y sale con código 0 o 3.
+- Integración del ejecutable: `TaxiVR.exe -taxivr-desktop -taxivr-verify -logFile verification-player.log`. Ejecuta conducción, reciclaje, cambio de origen, agarre, volumen, GPS, entrega y la **tabla de pedales por UDP real** (armado, freno, acelerador, derrape, pérdida a neutro y recuperación); genera `Verification/results.txt` y tres capturas junto a la build, y sale con código 0 o 3.
 - La prueba de escritorio no verifica la imagen estereoscópica, ergonomía, tracking real, compatibilidad de Link ni rendimiento a 72/90 Hz con visor. Esas comprobaciones requieren una sesión de hardware.
 
 ## Código

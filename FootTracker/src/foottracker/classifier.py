@@ -184,8 +184,8 @@ class MarkerTracker:
         if raw != self._candidate:
             self._candidate = raw
             self._count = 1
-            return
-        self._count += 1
+        else:
+            self._count += 1
         if self._count >= self.debounce_frames:
             self.state = raw
             self._count = 0
