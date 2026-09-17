@@ -1,0 +1,8 @@
+﻿<Solution>
+  <Project Path="TaxiVR.Runtime.csproj" />
+  <Project Path="TaxiVR.Tests.EditMode.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="TaxiVR.Editor.csproj" />
+  <Project Path="TaxiVR.Tests.PlayMode.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+</Solution>

@@ -1,0 +1,7 @@
+{
+  "name": "TaxiVR.Editor",
+  "rootNamespace": "TaxiVR.Bootstrap.Editor",
+  "references": ["TaxiVR.Runtime", "Unity.InputSystem", "Unity.XR.Management", "Unity.XR.Management.Editor", "Unity.XR.OpenXR", "Unity.XR.Hands"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": false
+}

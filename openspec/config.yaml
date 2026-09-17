@@ -1,0 +1,24 @@
+project:
+  name: taxi-vr
+  root: .
+  stack: Unity 6.3 LTS / C# / Meta XR SDK / OpenXR / URP
+  platform: Windows PCVR with Meta Quest 2 over Quest Link
+artifact_store: both
+strict_tdd: true
+phase_rules:
+  - initialize context before gameplay implementation
+  - stabilize the MVP hardware chain before passenger, GPS, request, or fault systems
+  - preserve human-control gates for authorization, security, destructive, publishing, and ambiguous scope
+  - forecast review workload before changes; canonical review budget is 400 changed lines
+  - delivery strategy is auto-chain, with chain strategy deferred until forecast requires it
+testing:
+  runner: Unity Test Framework via Unity Test Runner
+  package: com.unity.test-framework 1.8.0
+  discovered_capabilities:
+    - EditMode and PlayMode test framework dependency is installed
+    - no test assemblies or test files were found under Assets
+  current_status: baseline has testing infrastructure but no repository tests
+conventions:
+  - Unity assets and ProjectSettings are source-controlled; generated Library, Temp, Logs, and UserSettings are local state
+  - project scripts belong under Assets/_Project/Scripts when implemented
+  - use OpenXR and Meta XR packages already present in Packages/manifest.json

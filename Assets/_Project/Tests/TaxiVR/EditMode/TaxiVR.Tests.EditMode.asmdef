@@ -1,0 +1,7 @@
+{
+  "name": "TaxiVR.Tests.EditMode",
+  "references": ["TaxiVR.Runtime", "TaxiVR.Editor", "Unity.InputSystem", "Unity.XR.Management", "Unity.XR.Management.Editor"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

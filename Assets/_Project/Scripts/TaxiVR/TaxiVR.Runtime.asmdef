@@ -1,0 +1,5 @@
+{
+  "name": "TaxiVR.Runtime",
+  "rootNamespace": "TaxiVR",
+  "references": ["Unity.InputSystem", "Unity.XR.Management", "Unity.XR.OpenXR", "Unity.XR.Hands"]
+}

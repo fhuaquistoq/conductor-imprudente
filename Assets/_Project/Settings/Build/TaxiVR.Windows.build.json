@@ -1,0 +1,7 @@
+{
+  "name": "TaxiVR Windows x86-64",
+  "target": "StandaloneWindows64",
+  "scene": "Assets/_Project/Scenes/TaxiVR_Playable.unity",
+  "developmentDiagnostics": true,
+  "releaseDiagnostics": "low-overhead"
+}

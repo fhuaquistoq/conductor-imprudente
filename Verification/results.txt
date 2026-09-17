@@ -1,0 +1,16 @@
+PASS 49 sectors loaded with fixed capacity
+PASS First person camera exists
+PASS Cockpit interactions connected
+PASS Vehicle accelerates forward
+PASS Sector recycling stays bounded after travel
+PASS Floating origin keeps precision after long travel
+PASS Floating origin preserves logical world position
+PASS Steering accepts two hands
+PASS Physical hand arc rotates steering
+PASS Wrist rotation changes radio volume
+PASS Food follows grabbed hand
+PASS Released food restores physics
+PASS GPS button toggles power
+PASS Stopping at GPS destination completes a delivery
+PASS No runtime errors or exceptions: 0
+INFO average FPS over 120 frames: 24.9; hardware XR not tested by this desktop run

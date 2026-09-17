@@ -1,0 +1,6 @@
+{
+  "name": "TaxiVR.Tests.PlayMode",
+  "references": ["TaxiVR.Runtime", "Unity.InputSystem", "Unity.XR.Management"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

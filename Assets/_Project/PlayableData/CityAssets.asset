@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e523bc198fec15f49a80f5a3227068e4, type: 3}
+  m_Name: CityAssets
+  m_EditorClassIdentifier: TaxiVR.Runtime::TaxiVR.Playable.CityAssets
+  Buildings:
+  - {fileID: 919132149155446097, guid: abe72a2746ea9574a9ea3af2c192950d, type: 3}
+  - {fileID: 919132149155446097, guid: 0e7f91fd4cb7f2a48a55bee0e1f33e09, type: 3}
+  - {fileID: 919132149155446097, guid: f0d2449f224ff61449bc3d7b607757f3, type: 3}
+  Cars:
+  - {fileID: 919132149155446097, guid: 578b06d9c9e07d645bcc6a505e16c623, type: 3}
+  - {fileID: 919132149155446097, guid: a6479ad903257584d821e1b7c28a282a, type: 3}
+  - {fileID: 919132149155446097, guid: a167b101fa9621d44956d5141d6d91ca, type: 3}
+  Taxi: {fileID: 919132149155446097, guid: 0751b6b380e6fb04da3b5f5f59b4fc6f, type: 3}
+  Asphalt: {fileID: 2100000, guid: 71591613957c2ab4da3583ef737cf1b1, type: 2}
+  Pavement: {fileID: 2100000, guid: 48021b62c53dffe43867c7915fd37f7d, type: 2}
+  Dark: {fileID: 2100000, guid: 077164b6de2f1224aaccbe29a7f7853e, type: 2}
+  Yellow: {fileID: 2100000, guid: a4a009b333a16fb4594c56224fae8721, type: 2}
+  White: {fileID: 2100000, guid: 99d66a4f04fedca439976a3303fd7c60, type: 2}
+  Glass: {fileID: 2100000, guid: 1ecb9e84d6948da4f8032ee16fb5d220, type: 2}
+  Grass: {fileID: 2100000, guid: 9f64c4a48ba4c074fa9d26f5b351a4d4, type: 2}
+  Foliage: {fileID: 2100000, guid: 1989dba31aba5ac46a1cd14560779c91, type: 2}
+  Skin: {fileID: 2100000, guid: 634ed6917a03e4f4c910a7abe737105c, type: 2}
+  Red: {fileID: 2100000, guid: bbf7afe4f4a07cc46a3e452600e04f32, type: 2}
+  Blue: {fileID: 2100000, guid: 1215b9b017f79434aabdbc83e1f3782f, type: 2}
+  Facades:
+  - {fileID: 2100000, guid: 8c56aa55a62c7bf46b6391f6b72a7aa4, type: 2}
+  - {fileID: 2100000, guid: c338146b2548e5140bd7fe02f8810983, type: 2}
+  - {fileID: 2100000, guid: f75db5595e2f1c74cb30b362f9b1a8ac, type: 2}
+  - {fileID: 2100000, guid: f6d9a1d0881a0a0499a4b91f48de7ecf, type: 2}
+  DistantBuilding: {fileID: 2100000, guid: a3c3996327337c54ea806b2eef1d5d6d, type: 2}
+  UnlitShader: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
+  Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}

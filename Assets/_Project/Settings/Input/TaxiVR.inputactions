@@ -1,0 +1,36 @@
+{
+  "name": "TaxiVR",
+  "maps": [{
+    "name": "TaxiVR", "id": "01dba30c-00aa-4ee2-987a-3eac04ed38b1",
+    "actions": [
+      {"name":"Steering","type":"Value","id":"0a07df62-5316-48b9-ab09-6448dc7524b0","expectedControlType":"Axis"},
+      {"name":"Throttle","type":"Button","id":"25cb43b2-910f-4a44-a64a-98b666446a1c","expectedControlType":"Button"},
+      {"name":"Brake","type":"Button","id":"93e3f226-74cf-479b-a563-7c0fe8fddc80","expectedControlType":"Button"},
+      {"name":"Forward","type":"Button","id":"8df610aa-9591-4d7a-a946-648401fd71ec","expectedControlType":"Button"},
+      {"name":"Reverse","type":"Button","id":"c505be5f-69aa-4e91-a4eb-e9c7c65e2494","expectedControlType":"Button"},
+      {"name":"Neutral","type":"Button","id":"0497c675-776e-4cff-b5fb-26e1c3f3038d","expectedControlType":"Button"},
+      {"name":"LeftPosition","type":"PassThrough","id":"4e2a846b-74f2-411d-86bd-c2d2b5750d13","expectedControlType":"Vector3"},
+      {"name":"LeftRotation","type":"PassThrough","id":"5cfa13a4-8bc6-4c2b-a9e1-e6a459da9687","expectedControlType":"Quaternion"},
+      {"name":"RightPosition","type":"PassThrough","id":"12ebbf45-b09e-4e5d-af9e-55214b6f6d70","expectedControlType":"Vector3"},
+      {"name":"RightRotation","type":"PassThrough","id":"38896df3-df3e-4507-85ae-a08878fcd553","expectedControlType":"Quaternion"},
+      {"name":"Interact","type":"Button","id":"a4229f52-d428-4c5a-923f-4e7f9fd32ad7","expectedControlType":"Button"}
+    ],
+    "bindings": [
+      {"name":"Keyboard","id":"cb772e90-8e5e-4c92-a7cb-1e5d2e7144f6","path":"1DAxis","action":"Steering","isComposite":true},
+      {"name":"negative","id":"8802e67f-3d5b-436f-a796-c69fbeb7a34a","path":"<Keyboard>/a","action":"Steering","isPartOfComposite":true},
+      {"name":"positive","id":"cfb48f48-b6fb-46ca-898a-c342391b4fd5","path":"<Keyboard>/d","action":"Steering","isPartOfComposite":true},
+      {"id":"b62f04a2-f437-4a2a-978b-c1d55e4bccbb","path":"<Keyboard>/w","action":"Throttle"},
+      {"id":"9baa0df8-da1a-4174-9e3c-7a5aee81d9ec","path":"<Keyboard>/s","action":"Brake"},
+      {"id":"b1891049-44af-4d2a-aabf-e8c765b5941a","path":"<Keyboard>/q","action":"Forward"},
+      {"id":"f9e0951a-4e1a-4947-a29c-98d13a55be50","path":"<Keyboard>/e","action":"Reverse"},
+      {"id":"4a931f9c-3540-459a-8a0e-d622f54f66e0","path":"<Keyboard>/n","action":"Neutral"},
+      {"id":"7ba5b3f2-d8d8-4585-bee6-ae949bbab508","path":"<XRController>{LeftHand}/devicePosition","action":"LeftPosition"},
+      {"id":"9ccfa3bf-3393-4cec-aeb8-e3154ae95f09","path":"<XRController>{LeftHand}/deviceRotation","action":"LeftRotation"},
+      {"id":"52cfe1ee-93ab-423f-9453-75f6efefdf13","path":"<XRController>{RightHand}/devicePosition","action":"RightPosition"},
+      {"id":"fe079eef-cfef-48aa-b32a-5e42e76a2c25","path":"<XRController>{RightHand}/deviceRotation","action":"RightRotation"},
+      {"id":"272e91be-58f0-4fa0-826c-58ce9dcc673e","path":"<XRController>{LeftHand}/gripPressed","action":"Interact"},
+      {"id":"b455c192-cd0a-4f88-969e-c6c4bfe4d12f","path":"<XRController>{RightHand}/gripPressed","action":"Interact"}
+    ]
+  }],
+  "controlSchemes": []
+}
