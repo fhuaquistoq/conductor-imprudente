@@ -37,6 +37,9 @@ namespace TaxiVR.Bootstrap
 
         void Update()
         {
+            // Las metricas de depuracion solo existen en Development: en una compilacion de release la
+            // especificacion no admite HUD de ningun tipo, ni siquiera este monitor de diagnostico.
+            if (!Debug.isDebugBuild && !Application.isEditor) { monitorVisible = false; return; }
             if (Keyboard.current?.f1Key.wasPressedThisFrame == true) monitorVisible = !monitorVisible;
         }
 

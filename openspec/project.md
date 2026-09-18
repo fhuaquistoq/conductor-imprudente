@@ -11,7 +11,7 @@ The MVP hardware chain is first: Quest/OpenXR runtime, virtual hands, wheel, shi
 - Rendering/runtime: URP, Input System, OpenXR, Meta XR SDK packages.
 - Relevant packages include the individual `com.meta.xr.sdk.*` packages (core/interaction 205.0.0, audio/voice 85.x), `com.unity.xr.openxr` `1.18.0`, and `com.unity.test-framework` `1.8.0`. The `com.meta.xr.sdk.all` umbrella is not used.
 - Project-owned content lives under `Assets/_Project` (scripts, art, city assets, tests) plus the production scene `Assets/Main.unity`. There is no `Assets/ThirdParty` anymore: the curated art was moved into `Assets/_Project/Art`.
-- Tests exist: 7 files under `Assets/_Project/Tests/TaxiVR` (EditMode + PlayMode), 137 EditMode cases (106 methods) plus 2 PlayMode.
+- Tests exist: 9 files under `Assets/_Project/Tests/TaxiVR` (EditMode + PlayMode), 153 EditMode cases (108 methods) plus 2 PlayMode.
 - Generated Unity state is present locally in `Library`, `Temp`, `Logs`, and `UserSettings`; `.gitignore` excludes those plus generated `.csproj`, `.slnx` and local tool state.
 
 ## SDD and testing policy

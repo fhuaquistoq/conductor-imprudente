@@ -144,7 +144,8 @@ de 48, reducidos a 12 por encima de 40 km/h.
 distancia vial durante 45 s.
 
 ### Interior
-Volante cinemático (−450°…+450°, una o dos manos), palanca F/O/R con detente, radio con cinco canciones offline
+Volante cinemático (una o dos manos; **el recorte real es ±240°, no los ±450° de la especificación**, pendiente de
+la fase de interacción de cabina), palanca F/O/R con detente, radio con cinco canciones offline
 sintetizadas, clima frío/neutro/cálido, seis alimentos agarrables, espejos ajustables y **solo el retrovisor interior
 se desprende** (18 cm de su anclaje durante 250 ms).
 
@@ -167,7 +168,7 @@ necesitan una sesión con hardware o con el simulador. La verificación de escri
 
 ## Verificación reproducible
 
-- **Tests de edición**: `TaxiVR.Tests.EditMode`, **137 casos (106 métodos)** más **2 pruebas PlayMode**. Cubren la rejilla urbana (una manzana por
+- **Tests de edición**: `TaxiVR.Tests.EditMode`, **153 casos (108 métodos)** más **2 pruebas PlayMode**. Cubren la rejilla urbana (una manzana por
   sector, 8 casas en el cuadrado y 14 en el rectángulo, la calle interior cerrada, simetría de los cierres,
   parcelas sin solape, conectividad del grafo y alternativas de destino), el grafo (conectividad, densidad,
   sentidos únicos, cierres, A\*, Yen, destinos), el reglamento completo (penalizaciones, conformidad, peticiones,
@@ -235,6 +236,11 @@ Documentadas por exigencia del propio documento (§1). Todas son deliberadas.
    la fase `WaitForPedalTracker` se ha retirado del guion: los pies son una fuente de entrada más, con prioridad
    mientras llegan paquetes y con el teclado y los mandos de reserva. El receptor escucha además en `0.0.0.0`
    y no en loopback, para que un tracker en un PC pueda alcanzar al Quest independiente.
+9. **Mandos Touch como respaldo** — la especificación pide entrada solo por manos y deja fuera de alcance jugar con
+   mando. El proyecto mantiene las lecturas de los mandos (grip, gatillo y botón de menú) como red de seguridad
+   para cuando el tracking de manos se pierde, y el recentrado de emergencia es ese botón de menú en vez del gesto
+   de ambas manos abiertas 2 s que pide la especificación. Los perfiles Touch siguen activados en OpenXR y
+   `PlayableBuilder.Verify()` los exige, así que el APK no sale solo con manos.
 
 ## Cadena de suministro
 
