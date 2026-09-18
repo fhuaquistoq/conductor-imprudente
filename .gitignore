@@ -71,3 +71,4 @@ __pycache__/
 # Estado de herramientas y secretos locales
 /Assets/\#Meta/
 /Assets/Resources/DevAgentSettings.asset
+/Assets/Resources/DevAgentSettings.asset.meta
