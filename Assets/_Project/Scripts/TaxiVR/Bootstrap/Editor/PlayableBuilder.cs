@@ -85,6 +85,9 @@ namespace TaxiVR.Playable.Editor
             EditorSceneManager.SaveScene(scene, Scene);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(Scene, true) };
             AssetDatabase.SaveAssets();
+            // El cableado del arte deja de ser un paso manual: se rellena el catalogo aqui mismo y Verify()
+            // falla en voz alta si algun slot queda vacio.
+            TaxiVR.Bootstrap.Editor.TaxiAssetWiring.Wire();
             Verify();
         }
         static GameObject Load(string path) => AssetDatabase.LoadAssetAtPath<GameObject>(path) ?? throw new InvalidOperationException("Missing model " + path);
@@ -153,6 +156,16 @@ namespace TaxiVR.Playable.Editor
             var assets = AssetDatabase.LoadAssetAtPath<CityAssets>(DataFolder + "/CityAssets.asset");
             Require(assets != null && assets.Taxi != null && assets.Buildings.All(x=>x!=null) && assets.Cars.All(x=>x!=null), "Model references");
             Require(assets.UnlitShader != null && assets.Font != null, "UI shader and font");
+            // El cableado del arte no puede fallar en silencio: sin estos slots la ciudad se dibuja plana,
+            // los peatones comparten cuerpo y no hay arboles ni decoracion.
+            Require(assets.Catalog != null, "City catalog slot is empty");
+            Require(assets.PedestrianBodies != null && assets.PedestrianBodies.Length > 0 && assets.PedestrianBodies.All(x => x != null), "Pedestrian bodies slot is empty");
+            Require(assets.PedestrianHair != null && assets.PedestrianHair.Length > 0, "Pedestrian hair slot is empty");
+            Require(assets.PedestrianWalk != null, "Pedestrian walk controller slot is empty");
+            Require(assets.Trees != null && assets.Trees.Length > 0, "Trees slot is empty");
+            Require(assets.HardProps != null && assets.HardProps.Length > 0, "Hard props slot is empty");
+            Require(assets.SoftProps != null && assets.SoftProps.Length > 0, "Soft props slot is empty");
+            Require(assets.MarketProps != null && assets.MarketProps.Length > 0, "Market props slot is empty");
             var xr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Standalone);
             Require(xr.GetFeature<HandTracking>()?.enabled == true, "OpenXR Hand Tracking feature");
             Require(xr.GetFeature<OculusTouchControllerProfile>()?.enabled == true, "Touch controller profile");

@@ -309,6 +309,8 @@ namespace TaxiVR.Playable
             var body = Bodies(isHair: false, index);
             if (body != null)
             {
+                if (Assets.PedestrianBodies == null || Assets.PedestrianBodies.Length == 0)
+                    ArtLog.WarnOnce("cuerpos-peatones", "El catalogo no trae cuerpos de peaton: todos comparten un solo modelo. Ejecuta TaxiVR > City > Wire generated model slots.");
                 var model = Shape.Model(body, go.transform, Vector3.zero, PedestrianModelHeight);
                 person.Body = model.transform;
                 var instance = model.transform.childCount > 0 ? model.transform.GetChild(0).gameObject : model;

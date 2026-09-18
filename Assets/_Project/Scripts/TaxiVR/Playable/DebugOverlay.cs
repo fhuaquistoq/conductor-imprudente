@@ -45,6 +45,7 @@ namespace TaxiVR.Playable
                 $"Derrape {(drive.Skidding ? "si" : "no")}   Colisiones {drive.Collisions}",
                 $"Pie verde {Side(machine?.Green ?? FootState.Unknown, machine != null && machine.GreenValid)}   rojo {Side(machine?.Red ?? FootState.Unknown, machine != null && machine.RedValid)}",
                 $"Pies armados {(machine != null && machine.Armed ? "si" : "no")}   voz {(root.Player.Speaking ? "hablando" : "callado")}",
+                $"AVISO pies: {root.Feet?.Warning ?? "ok"}",
                 $"Volante {drive.Wheel?.Value ?? 0:0} grados   Marcha {(drive.Direction > 0 ? "F" : drive.Direction < 0 ? "R" : "O")}",
                 $"Velocidad {drive.Speed * 3.6f:0} km/h   Ruedas {drive.GroundedWheels}/4",
                 $"GPS {root.GPS.Distance:0} m   ruta {root.GPS.Path.Count} cruces   {(root.GPS.Powered ? "on" : "off")}",

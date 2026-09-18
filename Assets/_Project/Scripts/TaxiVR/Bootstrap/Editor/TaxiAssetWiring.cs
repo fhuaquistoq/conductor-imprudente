@@ -15,6 +15,7 @@ namespace TaxiVR.Bootstrap.Editor
     {
         const string CatalogPath = "Assets/_Project/PlayableData/CityAssets.asset";
         const string CharacterModels = "Assets/_Project/Art/Characters/Models/";
+        const string HairstyleModels = "Assets/_Project/Art/Characters/Hairstyles/";
         const string VehicleModels = "Assets/_Project/Art/Vehicles/Models/";
         const string BuildingModels = "Assets/_Project/Art/Buildings/Models/";
         const string TreeModels = "Assets/_Project/Art/Trees/Models/";
@@ -45,7 +46,7 @@ namespace TaxiVR.Bootstrap.Editor
                 "Outfits/Male_Ranger.fbx", "Outfits/Female_Ranger.fbx"
             }.Select(name => Import(CharacterModels + name)).ToArray();
 
-            assets.PedestrianHair = Directory.GetFiles(CharacterModels + "Hairstyles", "*.fbx")
+            assets.PedestrianHair = Directory.GetFiles(HairstyleModels, "*.fbx")
                 .Select(path => Import(path.Replace('\\', '/'))).ToArray();
 
             Humanoid(AnimationLibrary);
@@ -93,7 +94,12 @@ namespace TaxiVR.Bootstrap.Editor
         {
             var clip = AssetDatabase.LoadAllAssetsAtPath(AnimationLibrary).OfType<AnimationClip>()
                 .FirstOrDefault(c => c.name == WalkClipName);
-            if (clip == null) return null;
+            if (clip == null)
+            {
+                Debug.LogWarning("No se encontro el clip de caminata '" + WalkClipName + "' en " + AnimationLibrary +
+                    ". Los peatones andaran con la marcha procedural.");
+                return null;
+            }
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(WalkControllerPath);
             if (controller == null)
             {

@@ -66,6 +66,7 @@ namespace TaxiVR.Playable
                     }
                     else Debug.LogWarning("No hay runtime XR disponible. Activa el simulador (Window > Meta > Meta XR Simulator > Activate) o conecta el Quest. Se activan los controles de teclado y raton.");
                 }
+                else Debug.LogWarning("No hay XRGeneralSettings activo en el proyecto. Se activan los controles de teclado y raton.");
                 desktop = !initializedXR;
             }
             Player.Desktop = desktop;
@@ -176,8 +177,13 @@ namespace TaxiVR.Playable
             Button("Station", new Vector3(.035f, .6f, .445f), "FM", () => Interior.NextStation(), Assets.Blue);
             Button("Cruise", new Vector3(-.185f, .737f, .487f), "CRUCERO", () => Drive.Cruise = !Drive.Cruise, Assets.Blue);
             Button("Brake", new Vector3(-.10f, .737f, .487f), "FRENAR", () => { Drive.Cruise = false; Drive.Body.linearVelocity = Vector3.zero; }, Assets.Red);
-            var glass = Find("Taxi_L_FRONT_GLASS"); Vector3 originalGlass = glass.localPosition; bool open = false;
-            Button("Window", new Vector3(-.659f, .598f, .39f), "VENTANA", () => { open = !open; glass.localPosition = originalGlass + glass.parent.InverseTransformVector(Vector3.down * (open ? .33f : 0)); }, Assets.Dark);
+            var glass = Find("Taxi_L_FRONT_GLASS");
+            if (glass == null) ArtLog.WarnOnce("cristal", "Falta la pieza Taxi_L_FRONT_GLASS en el taxi: el boton VENTANA no funcionara.");
+            else
+            {
+                Vector3 originalGlass = glass.localPosition; bool open = false;
+                Button("Window", new Vector3(-.659f, .598f, .39f), "VENTANA", () => { open = !open; glass.localPosition = originalGlass + glass.parent.InverseTransformVector(Vector3.down * (open ? .33f : 0)); }, Assets.Dark);
+            }
             speedText = Shape.Label("Velocimetro", Drive.transform, new Vector3(-.405f, .759f, .574f), "00 km/h", .007f, new Color(.7f, 1, .9f), Assets.Font);
             speedText.transform.localRotation = Quaternion.Euler(10, 0, 0);
             Shape.Part("Radio display backing", Drive.transform, new Vector3(.035f, .661f, .432f), new Vector3(.15f, .038f, .008f), Assets.Dark);

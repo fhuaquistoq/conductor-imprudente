@@ -48,7 +48,8 @@ public static class TaxiDevelopmentBridge
             }
             else if (command == "wire")
             {
-                TaxiVR.Bootstrap.Editor.TaxiAssetWiring.Wire();
+                var type = Type.GetType("TaxiVR.Bootstrap.Editor.TaxiAssetWiring, TaxiVR.Editor", true);
+                type.GetMethod("Wire").Invoke(null, null);
             }
             else if (command == "configure" || command == "build" || command == "verify")
             {

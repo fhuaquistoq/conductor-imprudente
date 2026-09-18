@@ -160,7 +160,11 @@ namespace TaxiVR.Playable
 
         static void House(CityAssets assets, Transform parent, CityBlock block, int x, int z, Vector3 centre, Vector2 cell, Vector3 facing)
         {
-            if (assets.Buildings == null || assets.Buildings.Length == 0) return;
+            if (assets.Buildings == null || assets.Buildings.Length == 0)
+            {
+                ArtLog.WarnOnce("casas", "El catalogo no trae edificios: las manzanas se quedan sin casas. Ejecuta TaxiVR > City > Wire generated model slots.");
+                return;
+            }
             int seed = CityMath.Hash(block.Origin.x * 31 + x, block.Origin.y * 31 + z);
             var prefab = assets.Buildings[seed % assets.Buildings.Length];
             if (prefab == null) return;
@@ -175,6 +179,9 @@ namespace TaxiVR.Playable
         /// cambio, fija su posicion de mundo, que es lo que necesita para sobrevivir al origen flotante.</summary>
         static void StreetFurniture(CityAssets assets, Transform parent, CityBlock block, int x, int z, Vector3 centre, Vector3 origin, Vector2 cell, Vector3 facing)
         {
+            if (assets.HardProps == null || assets.HardProps.Length == 0) ArtLog.WarnOnce("props-duros", "El catalogo no trae decoracion dura: faltan farolas, pivotes y jardineras del kit. Ejecuta TaxiVR > City > Wire generated model slots.");
+            if (assets.SoftProps == null || assets.SoftProps.Length == 0) ArtLog.WarnOnce("props-blandos", "El catalogo no trae decoracion blanda: el taxi no tendra nada que tirar. Ejecuta TaxiVR > City > Wire generated model slots.");
+            if (assets.MarketProps == null || assets.MarketProps.Length == 0) ArtLog.WarnOnce("puesto", "El catalogo no trae genero del puesto: los puestos callejeros salen vacios. Ejecuta TaxiVR > City > Wire generated model slots.");
             float offset = (Mathf.Abs(facing.x) > .5f ? cell.x : cell.y) * .5f + 1.6f;
             var curb = new Vector3(centre.x + facing.x * offset, CityGrid.CurbHeight, centre.z + facing.z * offset);
             int seed = CityMath.Hash(block.Origin.x * 17 + x * 3, block.Origin.y * 17 + z * 5);
@@ -217,7 +224,12 @@ namespace TaxiVR.Playable
         /// de la siguiente cuando se mira la ciudad desde arriba.</summary>
         static void Yard(CityAssets assets, Transform parent, CityBlock block, Rect inside)
         {
-            if (assets.Trees == null || assets.Trees.Length == 0 || inside.width < 2f || inside.height < 2f) return;
+            if (assets.Trees == null || assets.Trees.Length == 0 || inside.width < 2f || inside.height < 2f)
+            {
+                if (assets.Trees == null || assets.Trees.Length == 0)
+                    ArtLog.WarnOnce("arboles", "El catalogo no trae arboles: los patios interiores quedan vacios. Ejecuta TaxiVR > City > Wire generated model slots.");
+                return;
+            }
             int seed = CityMath.Hash(block.Origin.x + 991, block.Origin.y - 331);
             int count = Mathf.Clamp(Mathf.RoundToInt(inside.width * inside.height / 90f), 1, 6);
             var root = Child(parent, "Patio");

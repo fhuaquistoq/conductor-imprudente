@@ -147,4 +147,17 @@ namespace TaxiVR.Playable
             return null;
         }
     }
+
+    /// <summary>Avisos de arte que falta, una sola vez por clave: la ciudad se levanta sector a sector y
+    /// repetir el mismo Debug.LogWarning por cada manzana inundaria la consola.</summary>
+    public static class ArtLog
+    {
+        static readonly HashSet<string> warned = new();
+
+        public static void WarnOnce(string key, string message)
+        {
+            if (!warned.Add(key)) return;
+            Debug.LogWarning(message);
+        }
+    }
 }
