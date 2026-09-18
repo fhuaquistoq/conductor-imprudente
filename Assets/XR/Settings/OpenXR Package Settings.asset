@@ -853,7 +853,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ee92377a8e0c873458b71a94a80f3394, type: 3}
   m_Name: ApiLayersFeature Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.ApiLayersFeature
-  m_enabled: 1
+  m_enabled: 0
   nameUi: API Layers
   version: 1.0.0
   featureIdInternal: com.unity.openxr.feature.apilayers
@@ -873,7 +873,7 @@ MonoBehaviour:
         description: API layer that providing agentic interface for OpenXR
       m_JsonFileName: XrApiLayer_METAX_operator.json
       m_LibraryArchitecture: 1
-      m_IsEnabled: 1
+      m_IsEnabled: 0
 --- !u!114 &1035596850164899948
 MonoBehaviour:
   m_ObjectHideFlags: 0

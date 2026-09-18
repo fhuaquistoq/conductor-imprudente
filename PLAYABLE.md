@@ -212,6 +212,21 @@ Documentadas por exigencia del propio documento (§1). Todas son deliberadas.
    cuatro en 20, que es la fiabilidad que ya tenía el grafo anterior. La penalización por sentido contrario sigue
    teniendo calles donde activarse.
 
+## Cadena de suministro
+
+- `com.coplaydev.unity-mcp` está **pineado a un SHA** (`30d22075093d1d35dfb0091c1c7550e9ad948577`) en
+  `Packages/manifest.json`, no a la rama `main`. Ese paquete ejecuta código en el Editor; fijar el commit
+  evita que entre una revisión no revisada.
+- El API layer de OpenXR `XrApiLayer_METAX_operator.dll` ("agentic interface for OpenXR") está
+  **desactivado** (la feature `API Layers` del perfil Standalone y la capa quedan a `0` en
+  `Assets/XR/Settings/OpenXR Package Settings.asset`). El repositorio no trae su fuente, build step ni
+  firma, así que no se carga hasta auditar su procedencia. Para reinstaurarlo: activar la feature
+  `API Layers` y volver a marcar la capa en `Window > XR > OpenXR`.
+- La configuración local del DevAgent de Meta XR (`Assets/Resources/DevAgentSettings.asset`) **no se
+  versiona**: contenía un `accessToken` que se purgó de la historia de git con `git filter-repo`. El
+  archivo vive solo en local (ignorado por `.gitignore`) y su token debe rotarse en
+  `Meta XR > Immersive Debugger`.
+
 ## Pendiente
 
 - Arte final y audio final (hitos 23 y 24).
