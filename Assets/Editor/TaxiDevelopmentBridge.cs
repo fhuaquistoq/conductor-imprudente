@@ -51,6 +51,13 @@ public static class TaxiDevelopmentBridge
                 var type = Type.GetType("TaxiVR.Bootstrap.Editor.TaxiAssetWiring, TaxiVR.Editor", true);
                 type.GetMethod("Wire").Invoke(null, null);
             }
+            else if (command == "hands")
+            {
+                var type = Type.GetType("TaxiVR.Bootstrap.Editor.XrFeatureSetup, TaxiVR.Editor", true);
+                var enable = type.GetMethod("Enable");
+                enable.Invoke(null, new object[] { BuildTargetGroup.Android });
+                enable.Invoke(null, new object[] { BuildTargetGroup.Standalone });
+            }
             else if (command == "configure" || command == "build" || command == "verify")
             {
                 if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");

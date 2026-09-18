@@ -45,6 +45,12 @@ más de un segundo, el mando vuelve a ellos. Arrancar sin tracker no bloquea el 
 receptor escucha en `0.0.0.0`, así que en el Quest independiente el tracker puede correr en un PC de la LAN
 (el puerto no está autenticado: cualquier equipo de la red puede inyectar pedales).
 
+Las **manos** se rastrean en el Quest: la feature *Hand Tracking Subsystem* de OpenXR está encendida para
+Android y Standalone, y el tooling la vuelve a encender antes de compilar, así que un APK sin manos no sale en
+silencio. Para agarrar vale la pinza índice-pulgar **o** la mano cerrada en torno al objeto; los umbrales
+(`PinchDistance`, `ClosedHandCurl`, `GripHysteresis` en `PlayerHands`) son editables en el Inspector con el
+visor puesto, que es donde se ajustan de verdad.
+
 ## Bucle de partida
 
 ```

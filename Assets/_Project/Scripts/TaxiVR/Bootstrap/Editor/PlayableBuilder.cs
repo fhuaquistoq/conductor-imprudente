@@ -80,14 +80,8 @@ namespace TaxiVR.Playable.Editor
             if (xr == null || xr.Manager == null) throw new InvalidOperationException("Existing Windows XR settings not found.");
             // Explicit startup lets -taxivr-desktop run without starting the Link/Simulator runtime.
             xr.InitManagerOnStart = false; EditorUtility.SetDirty(xr);
-            var openxr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Standalone);
-            foreach (var feature in openxr.GetFeatures<UnityEngine.XR.OpenXR.Features.OpenXRFeature>())
-            {
-                if (feature is HandTracking || feature is OculusTouchControllerProfile || feature.GetType().Name == "MetaQuestTouchPlusControllerProfile")
-                { feature.enabled = true; EditorUtility.SetDirty(feature); }
-                if (feature.GetType().Name == "OculusTouchControllerProximityProfile") { feature.enabled = false; EditorUtility.SetDirty(feature); }
-            }
-            EditorUtility.SetDirty(openxr);
+            // Las manos y los mandos son la entrada del juego en cualquier plataforma, Android incluido.
+            TaxiVR.Bootstrap.Editor.XrFeatureSetup.Enable(BuildTargetGroup.Standalone);
             PlayerSettings.companyName = "TaxiVR"; PlayerSettings.productName = "Taxi VR";
             PlayerSettings.defaultIsNativeResolution = false; PlayerSettings.defaultScreenWidth = 1440; PlayerSettings.defaultScreenHeight = 900;
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed; PlayerSettings.runInBackground = true;

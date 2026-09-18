@@ -36,6 +36,9 @@ namespace TaxiVR.Bootstrap.Editor
         public static void Build()
         {
             var profile = RequireProfile();
+            // Las manos son entrada del juego: sin esta feature en Android, OpenXR no crea el XRHandSubsystem
+            // y el APK sale respondiendo solo a los mandos Touch.
+            XrFeatureSetup.Enable(BuildTargetGroup.Android);
             RequireContract(profile);
             Directory.CreateDirectory(Path.GetDirectoryName(ApkPath));
 
@@ -92,6 +95,7 @@ namespace TaxiVR.Bootstrap.Editor
             var apis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
             if (apis.Length != 1 || apis[0] != GraphicsDeviceType.Vulkan)
                 errors.Add("Meta Quest exige Vulkan como unica API grafica.");
+            errors.AddRange(XrFeatureSetup.Validate(BuildTargetGroup.Android));
             if (errors.Count > 0)
                 throw new InvalidOperationException("Contrato de compilacion Android roto:\n - " + string.Join("\n - ", errors));
         }

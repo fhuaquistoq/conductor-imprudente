@@ -20,6 +20,17 @@ namespace TaxiVR.Playable
         public bool Speaking { get; private set; }
         public string TrackingStatus { get; private set; } = "TECLADO + RATON";
         public Vector3 SeatEye = new(-.36f, 1.06f, -.28f);
+
+        /// <summary>Distancia indice-pulgar, en metros, por debajo de la cual la mano agarra con la pinza.</summary>
+        public float PinchDistance = .035f;
+
+        /// <summary>Distancia media de las puntas del indice y el corazon a la palma, en fraccion del tamano de
+        /// la mano, por debajo de la cual la mano se considera cerrada en torno a algo. Es el numero a ajustar
+        /// con el visor puesto si el volante, la palanca o el papel cuestan de agarrar.</summary>
+        public float ClosedHandCurl = 1f;
+
+        /// <summary>Holgura para entrar y salir del agarre sin temblar.</summary>
+        public float GripHysteresis = .15f;
         readonly List<XRHandSubsystem> subsystems = new();
         readonly HandState[] hands = { new(), new() };
         XRHandSubsystem subsystem;
@@ -128,8 +139,10 @@ namespace TaxiVR.Playable
                 { Release(index); return false; }
                 point = transform.TransformPoint(TrackingPosition((finger.position + thumb.position) * .5f)); rotation = transform.rotation * yawCorrection * palm.rotation;
                 tip = transform.TransformPoint(TrackingPosition(finger.position));
-                float pinch = Vector3.Distance(finger.position, thumb.position);
-                grip = pinch < (state.WasGrip ? .045f : .027f) ? 1 : 0;
+                // Agarrar no puede ser solo una pinza: al volante, la palanca o una caja se llega con la mano
+                // cerrada. Se combinan la pinza y la distancia de las puntas a la palma, en proporcion del
+                // tamano de la mano para que valga cualquier mano.
+                grip = Grabbing(xrhand, palm.position, finger.position, thumb.position, state.WasGrip ? GripHysteresis : 0f) ? 1 : 0;
                 for (int j = 0; j < state.Joints.Length; j++)
                 {
                     if (xrhand.GetJoint(XRHandJointIDUtility.FromIndex(j)).TryGetPose(out var joint)) state.Joints[j].position = transform.TransformPoint(TrackingPosition(joint.position));
@@ -169,6 +182,16 @@ namespace TaxiVR.Playable
             else if (!gripping) Release(index);
             state.WasGrip = gripping;
             return real;
+        }
+        bool Grabbing(XRHand hand, Vector3 palm, Vector3 indexTip, Vector3 thumbTip, float slack)
+        {
+            if (Vector3.Distance(indexTip, thumbTip) < PinchDistance + slack) return true;
+            if (!hand.GetJoint(XRHandJointID.Wrist).TryGetPose(out var wrist)) return false;
+            float span = Vector3.Distance(palm, wrist.position);
+            if (span < .02f) return false;
+            var middle = hand.GetJoint(XRHandJointID.MiddleTip).TryGetPose(out var middleTip) ? middleTip.position : indexTip;
+            float curl = (Vector3.Distance(indexTip, palm) + Vector3.Distance(middle, palm)) * .5f / span;
+            return curl < ClosedHandCurl + slack;
         }
         CockpitInteractable Closest(Vector3 point, bool buttons)
         {
