@@ -219,11 +219,13 @@ namespace TaxiVR.City.Editor
 
         static GameObject SaveScenePrefab(GameObject source, string path)
         {
+            WarnIfOverwriting(path);
             return PrefabUtility.SaveAsPrefabAsset(source, path);
         }
 
         static GameObject SavePrefab(GameObject source, string path, bool addCollider)
         {
+            WarnIfOverwriting(path);
             var instance = PrefabUtility.InstantiatePrefab(source) as GameObject;
             if (instance == null) throw new InvalidOperationException("Could not instantiate " + source.name);
             if (addCollider && instance.GetComponent<Collider>() == null)
@@ -236,6 +238,14 @@ namespace TaxiVR.City.Editor
             var saved = PrefabUtility.SaveAsPrefabAsset(instance, path);
             UnityEngine.Object.DestroyImmediate(instance);
             return saved;
+        }
+
+        /// <summary>El constructor de ciudad reescribe los prefabs del kit: si ya existian, hay que decirlo, porque
+        /// cualquier ajuste manual hecho en el editor se pierde.</summary>
+        static void WarnIfOverwriting(string path)
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) return;
+            Debug.LogWarning("El constructor de ciudad sobrescribe el prefab " + path + "; los ajustes manuales se pierden. Recuperalos desde el control de versiones.");
         }
 
         static T LoadOrCreate<T>(string path) where T : ScriptableObject

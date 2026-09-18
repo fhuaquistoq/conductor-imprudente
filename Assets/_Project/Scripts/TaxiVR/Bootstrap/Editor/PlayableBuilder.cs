@@ -59,6 +59,15 @@ namespace TaxiVR.Playable.Editor
             EditorUtility.SetDirty(assets);
             // Keep the earlier bootstrap scene intact. This scene owns the first playable version.
             EditorSceneManager.SaveOpenScenes();
+            // Recrear la escena descarta cualquier ajuste manual, asi que nunca se hace en silencio: si ya
+            // existe la escena de produccion, se guarda una copia antes de sobrescribirla.
+            if (File.Exists(Scene))
+            {
+                Directory.CreateDirectory("Logs/SceneBackups");
+                var backup = "Logs/SceneBackups/Main-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".unity";
+                File.Copy(Scene, backup, true);
+                Debug.LogWarning("Se regenera " + Scene + " desde cero; copia de seguridad en " + backup + ".");
+            }
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var root = new GameObject("Taxi VR - playable composition").AddComponent<PlayableRoot>(); root.Assets = assets;
             var sun = new GameObject("Luz de tarde").AddComponent<Light>(); sun.type = LightType.Directional; sun.intensity = 1.4f;

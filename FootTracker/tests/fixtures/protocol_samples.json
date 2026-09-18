@@ -1,0 +1,47 @@
+{
+  "comment": "Contrato compartido entre FootProtocol.cs (C#) y protocol.py (Python). Los tests de ambos lados leen este mismo fichero para que no se puedan desincronizar.",
+  "version": 1,
+  "port": 5055,
+  "debounceSamples": 3,
+  "accepted": [
+    {
+      "json": "{\"version\":1,\"seq\":1821,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}",
+      "seq": 1821,
+      "red": "up",
+      "green": "down",
+      "redValid": true,
+      "greenValid": true
+    },
+    {
+      "json": "{\"version\":1,\"seq\":0,\"red\":\"down\",\"green\":\"up\",\"redValid\":false,\"greenValid\":true}",
+      "seq": 0,
+      "red": "down",
+      "green": "up",
+      "redValid": false,
+      "greenValid": true
+    },
+    {
+      "json": "{\"version\":1,\"seq\":7,\"red\":\"unknown\",\"green\":\"unknown\",\"redValid\":false,\"greenValid\":false}",
+      "seq": 7,
+      "red": "unknown",
+      "green": "unknown",
+      "redValid": false,
+      "greenValid": false
+    }
+  ],
+  "rejected": [
+    "",
+    "no es json",
+    "[]",
+    "{\"version\":2,\"seq\":1,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}",
+    "{\"version\":1,\"seq\":1,\"red\":\"sideways\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}"
+  ],
+  "newer": [
+    { "previous": 10, "next": 11, "expected": true },
+    { "previous": 2147483647, "next": -2147483648, "expected": true },
+    { "previous": 2147483645, "next": -2147483645, "expected": true },
+    { "previous": 11, "next": 10, "expected": false },
+    { "previous": 5, "next": 5, "expected": false },
+    { "previous": -2147483645, "next": 2147483645, "expected": false }
+  ]
+}

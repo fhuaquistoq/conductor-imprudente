@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.XR;
 using UnityEngine.XR.Management;
 using TaxiVR.Gameplay;
+using TaxiVR.Bootstrap;
 
 namespace TaxiVR.Playable
 {
@@ -85,6 +86,10 @@ namespace TaxiVR.Playable
                 desktop = !initializedXR;
             }
             Player.Desktop = desktop;
+            // Diagnostico de campo: deja un snapshot en persistentDataPath para poder revisar una partida sin
+            // depender de la consola del editor.
+            var diagnostics = new RuntimeDiagnostics();
+            diagnostics.Write(diagnostics.Capture(true, true));
             var arguments = Environment.GetCommandLineArgs();
             Director.SkipTrackerGate = Array.IndexOf(arguments, "-taxivr-verify") >= 0;
             if (Array.IndexOf(arguments, "-taxivr-verify") >= 0) gameObject.AddComponent<PlayableVerification>();

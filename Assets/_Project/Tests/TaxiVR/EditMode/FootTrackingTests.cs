@@ -1,5 +1,8 @@
+using System;
+using System.IO;
 using NUnit.Framework;
 using TaxiVR.Playable;
+using UnityEngine;
 
 namespace TaxiVR.Tests.EditMode
 {
@@ -237,6 +240,35 @@ namespace TaxiVR.Tests.EditMode
             Tick(machine, FootState.Down, FootState.Down);
             Assert.IsFalse(machine.Throttle);
             Assert.IsFalse(machine.Brake);
+        }
+
+        [Serializable] sealed class FixtureSample { public string json; public int seq; public string red; public string green; public bool redValid; public bool greenValid; }
+        [Serializable] sealed class FixtureOrder { public int previous; public int next; public bool expected; }
+        [Serializable] sealed class ProtocolFixture { public int version; public FixtureSample[] accepted; public string[] rejected; public FixtureOrder[] newer; }
+
+        static string FixturePath => Path.Combine(Application.dataPath, "..", "FootTracker", "tests", "fixtures", "protocol_samples.json");
+
+        /// <summary>El protocolo de pies esta duplicado en C# y en Python: ambos lados leen este mismo fixture,
+        /// de modo que una divergencia rompe el test de uno de los dos.</summary>
+        [Test]
+        public void SharedCrossLanguageFixtureMatchesProtocol()
+        {
+            Assert.IsTrue(File.Exists(FixturePath), "Falta el fixture compartido: " + FixturePath);
+            var fixture = JsonUtility.FromJson<ProtocolFixture>(File.ReadAllText(FixturePath));
+            Assert.AreEqual(FootProtocol.Version, fixture.version, "La version del fixture y la del protocolo deben coincidir");
+            foreach (var sample in fixture.accepted)
+            {
+                Assert.IsTrue(FootProtocol.TryParse(sample.json, out var packet), "Deberia aceptar: " + sample.json);
+                Assert.AreEqual(sample.seq, packet.Sequence);
+                Assert.AreEqual(sample.red, FootProtocol.Text(packet.Red));
+                Assert.AreEqual(sample.green, FootProtocol.Text(packet.Green));
+                Assert.AreEqual(sample.redValid, packet.RedValid);
+                Assert.AreEqual(sample.greenValid, packet.GreenValid);
+            }
+            foreach (var raw in fixture.rejected)
+                Assert.IsFalse(FootProtocol.TryParse(raw, out _), "Deberia rechazar: " + raw);
+            foreach (var item in fixture.newer)
+                Assert.AreEqual(item.expected, FootProtocol.IsNewer(item.previous, item.next), $"IsNewer({item.previous}, {item.next})");
         }
     }
 }
