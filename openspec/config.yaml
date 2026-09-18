@@ -17,7 +17,7 @@ testing:
   discovered_capabilities:
     - EditMode and PlayMode test framework dependency is installed
     - project tests live under Assets/_Project/Tests/TaxiVR (7 files: EditMode + PlayMode)
-  current_status: 135 EditMode cases (104 methods) plus 2 PlayMode tests, covering the city grid, road graph, scoring rules, the 12 passengers, the state machine and the production scene composition
+  current_status: 137 EditMode cases (106 methods) plus 2 PlayMode tests, covering the city grid, road graph, scoring rules, the 12 passengers, the state machine and the production scene composition
 conventions:
   - Unity assets and ProjectSettings are source-controlled; generated Library, Temp, Logs, and UserSettings are local state
   - project scripts belong under Assets/_Project/Scripts when implemented

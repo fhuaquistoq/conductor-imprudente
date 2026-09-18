@@ -155,7 +155,7 @@ necesitan una sesión con hardware o con el simulador. La verificación de escri
 
 ## Verificación reproducible
 
-- **Tests de edición**: `TaxiVR.Tests.EditMode`, **135 casos (104 métodos)** más **2 pruebas PlayMode**. Cubren la rejilla urbana (una manzana por
+- **Tests de edición**: `TaxiVR.Tests.EditMode`, **137 casos (106 métodos)** más **2 pruebas PlayMode**. Cubren la rejilla urbana (una manzana por
   sector, 8 casas en el cuadrado y 14 en el rectángulo, la calle interior cerrada, simetría de los cierres,
   parcelas sin solape, conectividad del grafo y alternativas de destino), el grafo (conectividad, densidad,
   sentidos únicos, cierres, A\*, Yen, destinos), el reglamento completo (penalizaciones, conformidad, peticiones,
