@@ -174,13 +174,17 @@ namespace TaxiVR.Tests.EditMode
         }
 
         [Test]
-        public void ABlockIsWiderThanTheRoadCorridorItSitsBetween()
+        public void HousePlotsTileTheBlockWithoutInvadingTheRoadCorridor()
         {
-            Assert.AreEqual(CityGrid.RoadHalfWidth * 2f, 12f, "Dos carriles de tres metros por sentido");
-            Assert.Greater(CityGrid.SidewalkWidth, 3f, "La acera debe caber junto a una casa");
-            Assert.AreEqual(CityGrid.RoadHalfWidth + CityGrid.SidewalkWidth, CityGrid.Inset);
             var block = CityGrid.BlockAt(Vector2Int.zero);
-            Assert.AreEqual(CityMath.Block - 2f * CityGrid.Inset, block.SizeWorld.z, .01f);
+            var first = block.CellRect(0, 0);
+            var last = block.CellRect(block.CellsX - 1, block.CellsZ - 1);
+            // Las parcelas cubren la manzana de borde a borde: si la cuenta fallara, sobraria hueco o la
+            // parcela se comeria la acera. No es una constante contra si misma: mide parcelas reales.
+            Assert.AreEqual(block.OriginWorld.x, first.xMin, .001f, "La primera parcela arranca en el borde de la manzana");
+            Assert.AreEqual(block.OriginWorld.z, first.yMin, .001f);
+            Assert.AreEqual(block.OriginWorld.x + block.SizeWorld.x, last.xMax, .001f, "La ultima parcela cierra la manzana");
+            Assert.AreEqual(block.OriginWorld.z + block.SizeWorld.z, last.yMax, .001f);
         }
 
         static int CountPerimeter(CityBlock block)

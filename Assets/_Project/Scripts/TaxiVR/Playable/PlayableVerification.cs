@@ -96,12 +96,13 @@ namespace TaxiVR.Playable
             Capture(root.Player.View, "02-after-drive.png");
             var overview = new GameObject("Verification city camera").AddComponent<Camera>(); overview.CopyFrom(root.Player.View);
             overview.transform.position = drive.transform.position + new Vector3(40, 65, -55); overview.transform.LookAt(drive.transform.position + new Vector3(20, 0, 30));
-            overview.cullingMask = ~(1 << 8); Capture(overview, "03-city.png"); Destroy(overview.gameObject);
+            overview.cullingMask = ~(1 << Layers.Interaction); Capture(overview, "03-city.png"); Destroy(overview.gameObject);
             yield return FeetChecks();
             Check(errors.Count == 0, "No runtime errors or exceptions: " + errors.Count);
             float frameTime = 0;
             for (int frame = 0; frame < 120; frame++) { yield return null; frameTime += Time.unscaledDeltaTime; }
             checks.Add($"INFO average FPS over 120 frames: {120 / Mathf.Max(.001f, frameTime):F1}; hardware XR not tested by this desktop run");
+            checks.Add("INFO commit " + CommitInfo() + "; build " + Application.buildGUID);
             File.WriteAllLines(Path.Combine(folder, "results.txt"), checks.Concat(errors));
             bool passed = errors.Count == 0 && !checks.Any(c => c.StartsWith("FAIL"));
             Debug.Log("TAXIVR_VERIFICATION " + (passed ? "PASS" : "FAIL") + " " + folder);
@@ -109,6 +110,17 @@ namespace TaxiVR.Playable
         }
         UdpClient footSender;
         int footSequence;
+
+        /// <summary>Origen del binario que firma el resultado. El jugador no ve git, asi que se le pasa la
+        /// revision por TAXIVR_COMMIT o por Verification/commit.txt para que la evidencia sea reproducible.</summary>
+        static string CommitInfo()
+        {
+            var fromEnvironment = Environment.GetEnvironmentVariable("TAXIVR_COMMIT");
+            if (!string.IsNullOrEmpty(fromEnvironment)) return fromEnvironment.Trim();
+            var file = Path.GetFullPath(Path.Combine(Application.dataPath, "../Verification/commit.txt"));
+            if (File.Exists(file)) return File.ReadAllText(file).Trim();
+            return "desconocido";
+        }
 
         void SendFeet(FootState red, FootState green, bool redValid, bool greenValid)
         {

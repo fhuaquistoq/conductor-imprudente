@@ -1,3 +1,9 @@
+> **Estado (2026-09): implementado; pendiente de verificación end-to-end.** Este change describe el bootstrap
+> XR inicial, pero la arquitectura viva es otra: escena `Assets/Main.unity`, `PlayableRoot`/`EndlessCity` y la
+> carpeta `Assets/_Project/Scripts/TaxiVR/`, sin `TaxiVRCompositionRoot` ni `BootstrapXrViewCompositionTests`.
+> Las casillas de abajo quedan como registro histórico; el estado real y la verificación reproducible están en
+> `PLAYABLE.md` (tests EditMode/PlayMode y arnés `runtime-check`).
+
 # TaxiVR Playable Base — Implementation Tasks
 
 Implement Gates 0–3 as small, independently reversible work units. Keep tests with the behavior they verify and keep deferred passenger, product GPS, request, fault, scoring, outcome, and results systems absent.

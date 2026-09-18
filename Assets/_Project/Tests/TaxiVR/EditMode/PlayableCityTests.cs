@@ -15,6 +15,22 @@ namespace TaxiVR.Tests.EditMode
             for (float t = 0; t < 120; t += .1f)
                 Assert.IsFalse(CityMath.SignalGreen(true, t) && CityMath.SignalGreen(false, t));
         }
+        [Test] public void TrafficSignalsCycleThroughGreenOnBothAxesAndAnAllRedGap()
+        {
+            // El invariante negativo de arriba pasaria aunque SignalGreen devolviera siempre false: aqui se
+            // comprueba que el ciclo de verdad reparte verde entre los dos ejes y deja un todo rojo.
+            bool northGreen = false, eastGreen = false, allRed = false;
+            for (float t = 0; t < 96f; t += .25f)
+            {
+                bool north = CityMath.SignalGreen(true, t), east = CityMath.SignalGreen(false, t);
+                northGreen |= north;
+                eastGreen |= east;
+                allRed |= !north && !east;
+            }
+            Assert.IsTrue(northGreen, "El eje norte-sur debe ponerse verde en algun momento del ciclo");
+            Assert.IsTrue(eastGreen, "El eje este-oeste debe ponerse verde en algun momento del ciclo");
+            Assert.IsTrue(allRed, "Debe existir un intervalo de todo rojo entre ejes");
+        }
         [Test] public void SteeringUnwrapsAcrossTheAngleSeam()
             => Assert.AreEqual(2, CityMath.WheelDelta(179, -179), .001);
         [Test] public void SectorHashIsStableAndVaried()

@@ -56,10 +56,18 @@ namespace TaxiVR.Tests.EditMode
         }
 
         [Test]
-        public void GateZeroLeavesLaterAndDeferredFeaturesAbsent()
+        public void DeferredSystemsAbsentFlipsWhenAnyDeferredFeatureIsOn()
         {
             var flags = new TaxiVRFeatureFlags();
-            Assert.That(flags.DeferredSystemsAbsent, Is.True);
+            Assert.That(flags.DeferredSystemsAbsent, Is.True, "Recien creado no hay sistemas diferidos activos");
+            flags.Cockpit = true;
+            Assert.That(flags.DeferredSystemsAbsent, Is.False, "Con cabina activa ya no estan ausentes");
+            flags.Cockpit = false;
+            flags.FootTracker = true;
+            Assert.That(flags.DeferredSystemsAbsent, Is.False, "Con el FootTracker activo ya no estan ausentes");
+            flags.FootTracker = false;
+            flags.Driving = true;
+            Assert.That(flags.DeferredSystemsAbsent, Is.False, "Con la conduccion activa ya no estan ausentes");
         }
     }
 }

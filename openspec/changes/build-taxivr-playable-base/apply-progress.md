@@ -1,3 +1,8 @@
+> **Estado (2026-09): superado.** Lo de abajo narra el bootstrap XR inicial y cita archivos que ya no existen
+> (`BootstrapXrViewCompositionTests.cs`, `Assets/_Project/Scenes/Main.unity`, `TaxiVRCompositionRoot`,
+> `OVRCameraRig`). La composición viva es `Assets/Main.unity` con `PlayableRoot` y `EndlessCity`. El estado real
+> y la verificación reproducible viven en `PLAYABLE.md`.
+
 # Apply progress — build-taxivr-playable-base
 
 ## Work Unit 0 — PR 1 bootstrap

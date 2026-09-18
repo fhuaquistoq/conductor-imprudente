@@ -146,12 +146,16 @@ Objetivo 72 Hz (presupuesto 13,89 ms) en Quest 2. Configuración aplicada: Vulka
 HDR y post-proceso desactivados, SRC Batcher e instancing activos, sombra direccional a 30 m con dos cascadas,
 niebla lineal 105→175 m, FFR medio y `AndroidEnableSustainedPerformanceMode`.
 
+El pipeline se fija **por plataforma**: los niveles de calidad Standalone usan `PC_RPAsset` y los de
+Android/Meta Quest usan `Mobile_RPAsset` (antes el nivel móvil caía al pipeline global de PC). El presupuesto de
+fotograma va a 72 Hz en `GameConstants.TargetFrameRate`.
+
 **Sin verificar**: el presupuesto real de CPU/GPU, el conteo de batches y el rendimiento sostenido a 72 Hz
 necesitan una sesión con hardware o con el simulador. La verificación de escritorio solo mide FPS del editor.
 
 ## Verificación reproducible
 
-- **Tests de edición**: `TaxiVR.Tests.EditMode`, **137 pruebas**. Cubren la rejilla urbana (una manzana por
+- **Tests de edición**: `TaxiVR.Tests.EditMode`, **135 casos (104 métodos)** más **2 pruebas PlayMode**. Cubren la rejilla urbana (una manzana por
   sector, 8 casas en el cuadrado y 14 en el rectángulo, la calle interior cerrada, simetría de los cierres,
   parcelas sin solape, conectividad del grafo y alternativas de destino), el grafo (conectividad, densidad,
   sentidos únicos, cierres, A\*, Yen, destinos), el reglamento completo (penalizaciones, conformidad, peticiones,
@@ -159,14 +163,17 @@ necesitan una sesión con hardware o con el simulador. La verificación de escri
   composición de la escena de producción.
 - **Contraste del arte**: `TaxiVR > City > Wire generated model slots` enlaza edificios, árboles, decoración dura
   y blanda, los seis cuerpos de peatón, los peinados, el controlador de caminata y las texturas de calzada y
-  acera. **Hay que ejecutarlo una vez** después de abrir el editor: sin él la ciudad se dibuja con los materiales
-  planos y sin casas.
+  acera. El cableado corre **solo** dentro de `PlayableBuilder.Configure()` (el menú sigue disponible para
+  reenlazar a mano) y `Verify()` falla en voz alta si algún slot queda vacío: ya no hay un paso manual silencioso.
+- **Determinismo**: la partida sale de una semilla raíz fija que se registra al arrancar (`TaxiVR semilla N`).
+  Se puede fijar otra con `-seed=N`, de modo que un reporte se puede reproducir.
 - **Tests Python**: `python -m pytest` en `FootTracker/`.
 - **Integración del ejecutable**:
   `TaxiVR.exe -taxivr-desktop -taxivr-verify -logFile verification-player.log` ejecuta conducción, registro y
   reciclado de manzanas, origen flotante, agarre, volumen, GPS, viaje completo con ETA, entrega, finales y la tabla
   de pedales por UDP real; genera `Verification/results.txt` y tres capturas.
-  En el editor el mismo arnés se lanza con `runtime-check`. **Último resultado: 30/30 en PASS, 0 errores.**
+  En el editor el mismo arnés se lanza con `runtime-check`. El arnés emite **33 comprobaciones** y firma el
+  resultado con el commit (`INFO commit ...`, tomado de `TAXIVR_COMMIT` o de `Verification/commit.txt`).
 
 ## Código
 

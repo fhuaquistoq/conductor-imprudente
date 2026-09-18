@@ -9,10 +9,10 @@ The MVP hardware chain is first: Quest/OpenXR runtime, virtual hands, wheel, shi
 ## Repository baseline
 - Unity editor: `6000.6.0f1`.
 - Rendering/runtime: URP, Input System, OpenXR, Meta XR SDK packages.
-- Relevant packages include `com.meta.xr.sdk.all` `205.0.0`, `com.unity.xr.openxr` `1.18.0`, and `com.unity.test-framework` `1.8.0`.
-- Starter/sample content exists under `Assets/Scenes`, `Assets/TutorialInfo`, and `Assets/ThirdParty`; project-owned folders are under `Assets/_Project`.
-- No project-owned scripts, test assemblies, or test files were discovered under `Assets` during initialization.
-- Generated Unity state is present locally in `Library`, `Temp`, `Logs`, and `UserSettings`; `.gitignore` excludes `.atl` local runtime state.
+- Relevant packages include the individual `com.meta.xr.sdk.*` packages (core/interaction 205.0.0, audio/voice 85.x), `com.unity.xr.openxr` `1.18.0`, and `com.unity.test-framework` `1.8.0`. The `com.meta.xr.sdk.all` umbrella is not used.
+- Project-owned content lives under `Assets/_Project` (scripts, art, city assets, tests) plus the production scene `Assets/Main.unity`. There is no `Assets/ThirdParty` anymore: the curated art was moved into `Assets/_Project/Art`.
+- Tests exist: 7 files under `Assets/_Project/Tests/TaxiVR` (EditMode + PlayMode), 135 EditMode cases (104 methods) plus 2 PlayMode.
+- Generated Unity state is present locally in `Library`, `Temp`, `Logs`, and `UserSettings`; `.gitignore` excludes those plus generated `.csproj`, `.slnx` and local tool state.
 
 ## SDD and testing policy
 OpenSpec and Engram are both active. OpenSpec configuration is in `openspec/config.yaml`; this context is the durable project context artifact. Strict TDD is enabled for future implementation: establish RED evidence, implement GREEN, triangulate behavior, then refactor with verification evidence. Tests should use Unity Test Framework EditMode or PlayMode runners.
