@@ -6,7 +6,6 @@ namespace TaxiVR.Gameplay
     public enum GamePhase
     {
         Boot,
-        WaitForPedalTracker,
         WakeUp,
         BriefPrinted,
         WaitingPassenger,
@@ -41,10 +40,9 @@ namespace TaxiVR.Gameplay
         public void Tick(float deltaTime)
         {
             PhaseSeconds += deltaTime;
-            if (Phase == GamePhase.Boot) Enter(GamePhase.WaitForPedalTracker);
+            if (Phase == GamePhase.Boot) Enter(GamePhase.WakeUp);
         }
 
-        public bool TrackerReady() => Phase == GamePhase.WaitForPedalTracker && Enter(GamePhase.WakeUp);
         public bool WakeUpFinished() => Phase == GamePhase.WakeUp && Enter(GamePhase.BriefPrinted);
         public bool BriefReady() => Phase == GamePhase.BriefPrinted && Enter(GamePhase.WaitingPassenger);
 

@@ -91,7 +91,6 @@ namespace TaxiVR.Playable
             var diagnostics = new RuntimeDiagnostics();
             diagnostics.Write(diagnostics.Capture(true, true));
             var arguments = Environment.GetCommandLineArgs();
-            Director.SkipTrackerGate = Array.IndexOf(arguments, "-taxivr-verify") >= 0;
             if (Array.IndexOf(arguments, "-taxivr-verify") >= 0) gameObject.AddComponent<PlayableVerification>();
             if (Array.IndexOf(arguments, "-taxivr-debug") >= 0 || Application.isEditor && ShowDebugInEditor) gameObject.AddComponent<DebugOverlay>();
         }
@@ -152,7 +151,7 @@ namespace TaxiVR.Playable
             Police.City = City; Police.Assets = Assets; Police.Drive = Drive; Police.Graph = Graph;
             Director = gameObject.AddComponent<GameDirector>();
             Director.Seed = Seed;
-            Director.Drive = Drive; Director.City = City; Director.GPS = GPS; Director.Feet = Feet;
+            Director.Drive = Drive; Director.City = City; Director.GPS = GPS;
             Director.Player = Player; Director.Assets = Assets; Director.Graph = Graph;
             Director.Police = Police;
             Interior = gameObject.AddComponent<InteriorControls>();

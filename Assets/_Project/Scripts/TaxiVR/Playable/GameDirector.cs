@@ -7,7 +7,6 @@ namespace TaxiVR.Playable
     /// de modo que el orden del guion vive en un solo sitio y el resto de sistemas solo reaccionan.</summary>
     public sealed class GameDirector : MonoBehaviour
     {
-        public const float TrackerGraceSeconds = 20f;
         public const float BoardingSeconds = 4f;
         public const float GroundedToBoardKmh = 1f;
         public const float FleeKmh = 10f;
@@ -21,13 +20,11 @@ namespace TaxiVR.Playable
         public TaxiDrive Drive;
         public EndlessCity City;
         public TaxiGPS GPS;
-        public FootReceiver Feet;
         public PlayerHands Player;
         public InteriorControls Interior;
         public PoliceSystem Police;
         public CityAssets Assets;
         public CityGraph Graph;
-        public bool SkipTrackerGate;
 
         public GameStateMachine Flow { get; } = new GameStateMachine();
         public TripSession Trip { get; private set; }
@@ -38,7 +35,7 @@ namespace TaxiVR.Playable
         public string EndingText { get; private set; }
 
         EyeShutter shutter;
-        float boardingTimer, arrivalTimer, endingTimer, fleeTimer, spawnTimer, trackerTimer, wrongWayTimer;
+        float boardingTimer, arrivalTimer, endingTimer, fleeTimer, spawnTimer, wrongWayTimer;
         Vector2Int lastNode = new(int.MinValue, int.MinValue);
         Vector2Int? lastRedLightNode;
         int passengerIndex;
@@ -52,7 +49,7 @@ namespace TaxiVR.Playable
         {
             shutter = EyeShutter.Attach(Player?.View);
             shutter?.SetVision(0f);
-            Status = "Esperando al FootTracker";
+            Status = "Despertando";
         }
 
         void Update()
@@ -61,7 +58,6 @@ namespace TaxiVR.Playable
             Flow.Tick(delta);
             switch (Flow.Phase)
             {
-                case GamePhase.WaitForPedalTracker: WaitingForTracker(delta); break;
                 case GamePhase.WakeUp: WakingUp(delta); break;
                 case GamePhase.BriefPrinted: Printing(delta); break;
                 case GamePhase.WaitingPassenger: WaitingPassenger(delta); break;
@@ -79,17 +75,6 @@ namespace TaxiVR.Playable
         }
 
         // ------------------------------------------------------------------ arranque
-
-        void WaitingForTracker(float delta)
-        {
-            trackerTimer += delta;
-            bool ready = SkipTrackerGate || (Feet != null && Feet.TrackingReceived && Feet.Machine.Armed);
-            if (!ready && trackerTimer < TrackerGraceSeconds) return;
-            trackerTimer = 0f;
-            StartupSeconds = 0f;
-            Flow.TrackerReady();
-            Status = "Despertando";
-        }
 
         void WakingUp(float delta)
         {

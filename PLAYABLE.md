@@ -33,24 +33,30 @@ o el argumento `-taxivr-desktop`.
 | Agarrar | Clic izquierdo sobre el objeto | Pinza índice-pulgar |
 | Tocar un botón | Clic izquierdo | Punta del índice |
 | Volante | A / D, o agarrar y arrastrar | Agarrar el aro con una o dos manos |
-| Acelerar / frenar | W / S o Espacio | Pie verde / pie rojo (FootTracker) |
+| Acelerar / frenar | W / S, Espacio o gatillos | Pie verde / pie rojo (FootTracker) |
 | Hablar al pasajero | Mantener **V** | Voz por el micrófono del visor |
 | Marcha F / O / R | Q / E | Agarrar la palanca y desplazarla |
 | Centrar vista | H | H, o ambas manos abiertas 2 s por debajo de 2 km/h |
 | Volver a la calle | R | R en el PC |
 
+El FootTracker es opcional y se activa solo: mientras lleguen paquetes frescos al puerto UDP 5055, los pies
+mandan sobre el acelerador y el freno, y el teclado, los gatillos y el crucero no los tocan; si el socket calla
+más de un segundo, el mando vuelve a ellos. Arrancar sin tracker no bloquea el arranque ni avisa de nada. El
+receptor escucha en `0.0.0.0`, así que en el Quest independiente el tracker puede correr en un PC de la LAN
+(el puerto no está autenticado: cualquier equipo de la red puede inyectar pedales).
+
 ## Bucle de partida
 
 ```
-Boot → WaitForPedalTracker → WakeUp → BriefPrinted → WaitingPassenger
-                                                      ├── TripActive → Arrived → final normal
-                                                      └── PassengerChasing → PoliceChase
-                                                                              ├── PoliceCaught
-                                                                              └── PoliceEscaped
+Boot → WakeUp → BriefPrinted → WaitingPassenger
+                               ├── TripActive → Arrived → final normal
+                               └── PassengerChasing → PoliceChase
+                                                      ├── PoliceCaught
+                                                      └── PoliceEscaped
 ```
 
 - **Arranque (0–9 s)**: pantalla negra, apertura radial de ojos a los 5–6,5 s, impresora de la hoja a los 7–9 s.
-  El juego espera al FootTracker conectado y calibrado (20 s de gracia para poder probar sin hardware).
+  El arranque no espera al FootTracker: los pies solo deciden el acelerador y el freno cuando llegan datos.
 - **Pasajero**: aparece 3 s después de imprimirse la hoja. Si el taxi va por debajo de 1 km/h sube por la puerta
   trasera derecha en 4 s. Si arrancas por encima de 10 km/h sin él, te persigue; puedes parar y recogerlo con −10
   de penalización, o huir y provocar la persecución policial.
@@ -218,6 +224,11 @@ Documentadas por exigencia del propio documento (§1). Todas son deliberadas.
    selector de destino solo encontraba cuatro rutas alternativas en 16 de cada 24 intentos; con un 5 % encuentra
    cuatro en 20, que es la fiabilidad que ya tenía el grafo anterior. La penalización por sentido contrario sigue
    teniendo calles donde activarse.
+8. **Arranque sin esperar al FootTracker** — la especificación manda esperar al tracker de pies conectado y
+   calibrado antes de despertar, con 20 s de gracia. Eso convertía un accesorio en un peaje de arranque, así que
+   la fase `WaitForPedalTracker` se ha retirado del guion: los pies son una fuente de entrada más, con prioridad
+   mientras llegan paquetes y con el teclado y los mandos de reserva. El receptor escucha además en `0.0.0.0`
+   y no en loopback, para que un tracker en un PC pueda alcanzar al Quest independiente.
 
 ## Cadena de suministro
 

@@ -164,12 +164,15 @@ namespace TaxiVR.Playable
                 manual = Mathf.Max(manual, Player.RightTrigger);
                 manualBrake = Mathf.Max(manualBrake, Player.LeftTrigger);
             }
-            float feetThrottle = FootTracking && Feet.Machine.Throttle ? 1f : 0f;
-            float feetBrake = FootTracking && Feet.Machine.Brake ? 1f : 0f;
-            Throttle = TestThrottle >= 0 ? TestThrottle : Mathf.Max(manual, feetThrottle);
-            Brake = Mathf.Max(manualBrake, feetBrake);
+            // Mientras el tracker da datos frescos manda el; el teclado y los mandos quedan de reserva. Si el
+            // socket calla, vuelven solos sin que nadie tenga que cambiar nada.
+            bool feetLive = FootTracking;
+            FootPedals.Source(feetLive, feetLive && Feet.Machine.Throttle, feetLive && Feet.Machine.Brake, manual, manualBrake, out float throttle, out float brake);
+            Throttle = TestThrottle >= 0 ? TestThrottle : throttle;
+            Brake = brake;
             Skidding = FootPedals.Skid(Throttle > .5f, Brake > .5f);
-            if (Cruise && Mathf.Abs(Speed) < 6) Throttle = Mathf.Max(Throttle, .5f);
+            // El crucero es un apano de teclado: con los pies en linea no debe acelerar por encima de ellos.
+            if (Cruise && !feetLive && Mathf.Abs(Speed) < 6) Throttle = Mathf.Max(Throttle, .5f);
             if (Brake > .1f) Cruise = false;
             if (Paused || Player != null && Player.HadHeadTracking && !Player.HeadTracked) { Throttle = 0; Brake = 1; Cruise = false; Skidding = false; }
             ThrottleAnalog = FootPedals.Approach(ThrottleAnalog, Throttle, FootPedals.RampSeconds, Time.deltaTime);

@@ -91,6 +91,7 @@ namespace TaxiVR.Playable
         readonly Side red = new();
         readonly Side green = new();
         float invalidTime;
+        bool tracked;
 
         public bool Armed { get; private set; }
         public FootState Red => red.Stable;
@@ -108,8 +109,10 @@ namespace TaxiVR.Playable
             Observe(green, greenValid ? rawGreen : FootState.Unknown, deltaTime);
             if (!Armed && (red.Stable == FootState.Up || green.Stable == FootState.Up)) Armed = true;
             TrackingValid = red.Available && green.Available;
-            if (TrackingValid) { invalidTime = 0; Warning = false; }
-            else { invalidTime += deltaTime; if (invalidTime > LossWarningTime) Warning = true; }
+            // El aviso es para quien estaba siguiendo y pierde los marcadores, no para quien no ha enchufado
+            // nunca la camara: sin datos el juego no dice nada y el mando vuelve al teclado.
+            if (TrackingValid) { tracked = true; invalidTime = 0; Warning = false; }
+            else { invalidTime += deltaTime; if (tracked && invalidTime > LossWarningTime) Warning = true; }
             Pedals(out bool throttle, out bool brake);
             Throttle = throttle; Brake = brake;
         }
@@ -119,7 +122,7 @@ namespace TaxiVR.Playable
 
         public void Reset()
         {
-            Armed = false; TrackingValid = true; Warning = false; Throttle = false; Brake = false; invalidTime = 0;
+            Armed = false; TrackingValid = true; Warning = false; Throttle = false; Brake = false; invalidTime = 0; tracked = false;
             Reset(red); Reset(green);
         }
 
@@ -155,5 +158,15 @@ namespace TaxiVR.Playable
             rampSeconds <= 0 ? target : Mathf.MoveTowards(current, target, deltaTime / rampSeconds);
 
         public static bool Skid(bool throttle, bool brake) => throttle && brake;
+
+        /// <summary>Reparto de mando entre el tracker y el resto de controles. Es una prioridad, no una suma:
+        /// mientras llegan paquetes frescos manda el tracker y el teclado y los mandos no tocan acelerador ni
+        /// freno; cuando el socket calla, vuelven ellos. Si se sumaran, pisar el freno con el pie no impediria
+        /// que W acelerase a la vez.</summary>
+        public static void Source(bool tracking, bool footThrottle, bool footBrake, float manualThrottle, float manualBrake, out float throttle, out float brake)
+        {
+            throttle = tracking ? (footThrottle ? 1f : 0f) : manualThrottle;
+            brake = tracking ? (footBrake ? 1f : 0f) : manualBrake;
+        }
     }
 }

@@ -11,7 +11,12 @@ namespace TaxiVR.Playable
     public sealed class FootReceiver : MonoBehaviour
     {
         public int Port = FootProtocol.Port;
-        public bool Enabled = true;
+
+        /// <summary>El receptor vive siempre encendido: si no llega nada no hace nada y cuando llega, manda
+        /// el. Editable en caliente, tambien durante Play; el cambio se aplica solo.</summary>
+        [SerializeField] bool enabled = true;
+        public bool Enabled { get => enabled; set => enabled = value; }
+
         public FootStateMachine Machine { get; } = new();
         public bool SocketBound { get; private set; }
         public string Failure { get; private set; }
@@ -24,21 +29,32 @@ namespace TaxiVR.Playable
         int lastSequence = -1;
         float lastPacketTime = -100;
         bool hasPacket;
+        bool applied;
         FootState red, green;
         bool redValid, greenValid;
 
         public bool TrackingReceived => hasPacket && Time.unscaledTime - lastPacketTime < FootProtocol.StaleSeconds;
 
-        void OnEnable() => Open();
+        void OnEnable() { applied = !Enabled; Apply(); }
         void OnDisable() => Close();
         void OnDestroy() => Close();
+
+        // Aplica en caliente el cambio de Enabled, venga del Inspector o del codigo.
+        void Apply()
+        {
+            if (applied == Enabled) return;
+            applied = Enabled;
+            if (Enabled) Open(); else Close();
+        }
 
         public void Open()
         {
             if (running || !Enabled) return;
             try
             {
-                client = new UdpClient(new IPEndPoint(IPAddress.Loopback, Port));
+                // 0.0.0.0 y no loopback: en el Quest independiente el tracker corre en un PC de la LAN.
+                // El puerto no esta autenticado, asi que cualquier equipo de la red puede inyectar pedales.
+                client = new UdpClient(new IPEndPoint(IPAddress.Any, Port));
                 running = true;
                 SocketBound = true; Failure = null;
                 worker = new Thread(Receive) { IsBackground = true, Name = "FootTracker" };
@@ -85,6 +101,7 @@ namespace TaxiVR.Playable
 
         void Update()
         {
+            Apply();
             TakeLatest();
             if (TrackingReceived) Machine.Tick(red, green, redValid, greenValid, Time.deltaTime);
             else Machine.Tick(FootState.Unknown, FootState.Unknown, false, false, Time.deltaTime);

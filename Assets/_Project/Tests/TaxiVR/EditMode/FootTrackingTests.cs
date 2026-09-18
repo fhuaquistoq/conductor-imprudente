@@ -200,6 +200,17 @@ namespace TaxiVR.Tests.EditMode
         }
 
         [Test]
+        public void NoDataEverIsSilentAndNeutral()
+        {
+            var machine = new FootStateMachine();
+            Tick(machine, FootState.Unknown, FootState.Unknown, 120);
+            Assert.IsFalse(machine.Armed);
+            Assert.IsFalse(machine.Warning, "Sin haber seguido nunca no hay nada que avisar: el juego no dice nada.");
+            Assert.IsFalse(machine.Throttle);
+            Assert.IsFalse(machine.Brake);
+        }
+
+        [Test]
         public void LostTrackingRecoversWhenMarkersReturn()
         {
             var machine = Armed();
@@ -220,6 +231,34 @@ namespace TaxiVR.Tests.EditMode
             FootPedals.Table(true, FootState.Down, FootState.Down, out throttle, out brake);
             Assert.IsTrue(throttle);
             Assert.IsTrue(brake);
+        }
+
+        [Test]
+        public void FeetTakeOverWhileTrackingAndReturnControlWhenTheyStop()
+        {
+            FootPedals.Source(true, true, false, 0f, 1f, out float throttle, out float brake);
+            Assert.IsTrue(throttle > .99f, "El pie verde acelera.");
+            Assert.IsFalse(brake > .01f, "Con el tracker en linea el freno del teclado no manda.");
+
+            FootPedals.Source(false, false, false, 1f, 0f, out throttle, out brake);
+            Assert.IsTrue(throttle > .99f, "Sin tracker vuelve el teclado.");
+            Assert.IsFalse(brake > .01f);
+        }
+
+        [Test]
+        public void FeetNeutralWhileTrackingIgnoresTheKeyboard()
+        {
+            FootPedals.Source(true, false, false, 1f, 0f, out float throttle, out float brake);
+            Assert.IsFalse(throttle > .01f, "Con los pies en linea, W no acelera por su cuenta.");
+            Assert.IsFalse(brake > .01f);
+        }
+
+        [Test]
+        public void FootBrakeWinsOverKeyboardThrottle()
+        {
+            FootPedals.Source(true, false, true, 1f, 0f, out float throttle, out float brake);
+            Assert.IsFalse(throttle > .01f);
+            Assert.IsTrue(brake > .99f);
         }
 
         [Test]

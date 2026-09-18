@@ -44,8 +44,8 @@ namespace TaxiVR.Playable
                 $"Acelerador {drive.Throttle:0.00} (rampa {drive.ThrottleAnalog:0.00})   Freno {drive.Brake:0.00} (rampa {drive.BrakeAnalog:0.00})",
                 $"Derrape {(drive.Skidding ? "si" : "no")}   Colisiones {drive.Collisions}",
                 $"Pie verde {Side(machine?.Green ?? FootState.Unknown, machine != null && machine.GreenValid)}   rojo {Side(machine?.Red ?? FootState.Unknown, machine != null && machine.RedValid)}",
-                $"Pies armados {(machine != null && machine.Armed ? "si" : "no")}   voz {(root.Player.Speaking ? "hablando" : "callado")}",
-                $"AVISO pies: {root.Feet?.Warning ?? "ok"}",
+                $"Mando {(drive.FootTracking ? "pies (tracker)" : "teclado / mandos")}   armados {(machine != null && machine.Armed ? "si" : "no")}   voz {(root.Player.Speaking ? "hablando" : "callado")}",
+                $"AVISO pies: {root.Feet?.Warning ?? "sin avisos"}",
                 $"Volante {drive.Wheel?.Value ?? 0:0} grados   Marcha {(drive.Direction > 0 ? "F" : drive.Direction < 0 ? "R" : "O")}",
                 $"Velocidad {drive.Speed * 3.6f:0} km/h   Ruedas {drive.GroundedWheels}/4",
                 $"GPS {root.GPS.Distance:0} m   ruta {root.GPS.Path.Count} cruces   {(root.GPS.Powered ? "on" : "off")}",
@@ -55,7 +55,7 @@ namespace TaxiVR.Playable
                 "W / S acelerar y frenar   A / D girar   C crucero   ESC pausa",
                 "Q / E marcha   R volver a la calle   H centrar   V hablar",
                 "Clic izquierdo: agarrar o tocar   Rueda: ajustar",
-                "Pies: verde acelera, rojo frena",
+                "Pies: verde acelera, rojo frena (con el tracker en linea se ignoran W/S y gatillos)",
             });
         }
     }

@@ -558,9 +558,9 @@ namespace TaxiVR.Tests.EditMode
         public void HappyPathWalksEveryPhaseInOrder()
         {
             var flow = new GameStateMachine();
+            Assert.AreEqual(GamePhase.Boot, flow.Phase);
             flow.Tick(.1f);
-            Assert.AreEqual(GamePhase.WaitForPedalTracker, flow.Phase);
-            Assert.IsTrue(flow.TrackerReady());
+            // El arranque no espera al FootTracker: es una fuente de entrada mas, no un requisito.
             Assert.AreEqual(GamePhase.WakeUp, flow.Phase);
             Assert.IsTrue(flow.WakeUpFinished());
             Assert.IsTrue(flow.BriefReady());
@@ -579,7 +579,6 @@ namespace TaxiVR.Tests.EditMode
         {
             var flow = new GameStateMachine();
             flow.Tick(.1f);
-            flow.TrackerReady();
             flow.WakeUpFinished();
             flow.BriefReady();
             Assert.IsFalse(flow.BeginTrip());
@@ -650,7 +649,6 @@ namespace TaxiVR.Tests.EditMode
         {
             var flow = new GameStateMachine();
             flow.Tick(.1f);
-            flow.TrackerReady();
             Assert.AreEqual(0f, flow.PhaseSeconds, .0001f);
             flow.Tick(.4f);
             Assert.AreEqual(.4f, flow.PhaseSeconds, .0001f);

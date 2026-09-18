@@ -70,7 +70,6 @@ namespace TaxiVR.Playable
             Check(root.GPS.Powered != gpsBefore, "GPS button toggles power");
 
             var director = root.Director;
-            director.SkipTrackerGate = true;
             director.ForceTrip();
             for (float elapsed = 0; elapsed < 8f && root.GPS.Path.Count == 0; elapsed += Time.deltaTime) yield return null;
             Check(director.Trip != null, "Trip session created with a passenger profile");
