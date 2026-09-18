@@ -1,8 +1,16 @@
-"""Fuentes de video: webcam USB o celular presentado como webcam (especificacion 44)."""
+"""Fuentes de video: webcam USB o camara externa publicada por Wi-Fi (especificacion 44).
+
+Una URL de red se abre con FFMPEG y con timeouts acotados, y la lectura vive en un hilo
+que publica solo el ultimo frame. Asi un atasco de Wi-Fi no bloquea el envio UDP ni deja
+el proceso sin recuperarse cuando la camara vuelve.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Callable
 
 import cv2
 import numpy as np
@@ -10,6 +18,200 @@ import numpy as np
 
 class CameraError(RuntimeError):
     """La camara no pudo abrirse o dejo de entregar imagen."""
+
+
+NETWORK_SCHEMES = ("http://", "https://", "rtsp://", "rtsps://", "rtmp://", "udp://", "tcp://")
+CaptureFactory = Callable[..., "cv2.VideoCapture"]
+Clock = Callable[[], float]
+
+
+def default_factory(*args):
+    return cv2.VideoCapture(*args)
+
+
+def is_network(value: object) -> bool:
+    """True si la fuente es una URL de red y no un indice de webcam."""
+
+    return isinstance(value, str) and value.lower().startswith(NETWORK_SCHEMES)
+
+
+def open_capture(source: int | str, open_timeout: float, factory: CaptureFactory = default_factory):
+    """Abre el capture. En red fija FFMPEG y timeouts; en USB deja el backend automatico."""
+
+    if not is_network(source):
+        return factory(source)
+    seconds = max(float(open_timeout), 0.1)
+    params = [
+        cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, int(seconds * 1000),
+        cv2.CAP_PROP_READ_TIMEOUT_MSEC, int(min(seconds, 1.0) * 1000),
+    ]
+    return factory(source, cv2.CAP_FFMPEG, params)
+
+
+class FrameBuffer:
+    """Ultimo frame leido con su marca de tiempo, compartido entre hilos."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._frame: np.ndarray | None = None
+        self._stamp = 0.0
+
+    def put(self, frame: np.ndarray, now: float) -> None:
+        with self._lock:
+            self._frame = frame
+            self._stamp = now
+
+    def take(self, now: float, stale_seconds: float) -> np.ndarray | None:
+        """Copia del ultimo frame si sigue fresco; si no, no hay imagen que clasificar."""
+
+        with self._lock:
+            if self._frame is None or now - self._stamp > stale_seconds:
+                return None
+            return self._frame.copy()
+
+    def age(self, now: float) -> float | None:
+        with self._lock:
+            if self._frame is None:
+                return None
+            return max(now - self._stamp, 0.0)
+
+
+@dataclass(frozen=True)
+class SourceStatus:
+    """Estado observable de la fuente, para diagnostico en consola y en la vista previa."""
+
+    connected: bool
+    frames: int
+    reconnects: int
+    last_frame_age: float | None
+    message: str
+
+
+class FrameReader:
+    """Hilo que mantiene la camara abierta, publica el ultimo frame y reconecta."""
+
+    def __init__(
+        self,
+        source: int | str,
+        *,
+        width: int = 640,
+        height: int = 480,
+        fps: int = 30,
+        open_timeout: float = 5.0,
+        stale_seconds: float = 0.3,
+        reconnect_delay: float = 0.5,
+        max_reconnect_delay: float = 5.0,
+        factory: CaptureFactory = default_factory,
+        clock: Clock = time.perf_counter,
+    ):
+        self.source = source
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.open_timeout = open_timeout
+        self.stale_seconds = stale_seconds
+        self.reconnect_delay = reconnect_delay
+        self.max_reconnect_delay = max_reconnect_delay
+        self.factory = factory
+        self.clock = clock
+        self.buffer = FrameBuffer()
+        self.capture = None
+        self.connected = False
+        self.frames = 0
+        self.reconnects = 0
+        self.last_error = ""
+        self.retry_delay = reconnect_delay
+        self.retry_at = 0.0
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def connect(self) -> None:
+        """Apertura sincrona y de fallo rapido, para que quien llama decida sin imagen."""
+
+        capture = open_capture(self.source, self.open_timeout, self.factory)
+        if not capture.isOpened():
+            capture.release()
+            raise CameraError(f"No se pudo abrir la camara {self.source!r}.")
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        capture.set(cv2.CAP_PROP_FPS, self.fps)
+        self.capture = capture
+        self.connected = True
+        self.last_error = ""
+        self.retry_delay = self.reconnect_delay
+        self.retry_at = 0.0
+
+    def poll(self) -> None:
+        """Una iteracion del bucle: reabrir si toca, leer y publicar. No duerme."""
+
+        if self._stop.is_set():
+            return
+        now = self.clock()
+        capture = self.capture
+        if capture is None:
+            if now >= self.retry_at:
+                self._reopen(now)
+            return
+        ok, frame = capture.read()
+        if ok and frame is not None and getattr(frame, "size", 0):
+            self.buffer.put(frame, now)
+            self.frames += 1
+            return
+        capture.release()
+        if self._stop.is_set():
+            return
+        if self.capture is capture:
+            self.capture = None
+        self.connected = False
+        self.reconnects += 1
+        self.last_error = "la camara dejo de entregar imagen"
+        self.retry_delay = self.reconnect_delay
+        self.retry_at = now + self.retry_delay
+
+    def _reopen(self, now: float) -> None:
+        try:
+            self.connect()
+        except CameraError as error:
+            self.connected = False
+            self.last_error = str(error)
+            self.retry_at = now + self.retry_delay
+            self.retry_delay = min(self.retry_delay * 2, self.max_reconnect_delay)
+
+    def status(self) -> SourceStatus:
+        now = self.clock()
+        if self.connected:
+            message = "conectada"
+        else:
+            message = f"sin senal: {self.last_error}" if self.last_error else "sin senal"
+        return SourceStatus(self.connected, self.frames, self.reconnects, self.buffer.age(now), message)
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="FootTrackerCamara", daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self.poll()
+            if self.capture is None:
+                wait = max(min(self.retry_at - self.clock(), 0.25), 0.01)
+            else:
+                wait = 0.002
+            self._stop.wait(wait)
+
+    def stop(self, timeout: float = 2.0) -> None:
+        """Parada acotada: si un read de FFMPEG esta atascado, no se espera indefinidamente."""
+
+        self._stop.set()
+        thread, self._thread = self._thread, None
+        if thread is not None:
+            thread.join(timeout)
+        if self.capture is not None:
+            self.capture.release()
+            self.capture = None
+        self.connected = False
 
 
 @dataclass
@@ -20,31 +222,54 @@ class CameraSource:
     width: int = 640
     height: int = 480
     fps: int = 30
-    _capture: cv2.VideoCapture | None = None
+    open_timeout: float = 5.0
+    stale_seconds: float = 0.3
+    reconnect_delay: float = 0.5
+    max_reconnect_delay: float = 5.0
+    factory: CaptureFactory = default_factory
+    clock: Clock = time.perf_counter
+    _reader: FrameReader | None = field(default=None, repr=False)
 
     def open(self) -> None:
-        capture = cv2.VideoCapture(self.source)
-        if not capture.isOpened():
-            raise CameraError(f"No se pudo abrir la camara {self.source!r}.")
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        capture.set(cv2.CAP_PROP_FPS, self.fps)
-        self._capture = capture
+        if self._reader is not None:
+            return
+        reader = FrameReader(
+            self.source,
+            width=self.width,
+            height=self.height,
+            fps=self.fps,
+            open_timeout=self.open_timeout,
+            stale_seconds=self.stale_seconds,
+            reconnect_delay=self.reconnect_delay,
+            max_reconnect_delay=self.max_reconnect_delay,
+            factory=self.factory,
+            clock=self.clock,
+        )
+        reader.connect()
+        reader.start()
+        self._reader = reader
 
     def read(self) -> np.ndarray | None:
-        if self._capture is None:
+        if self._reader is None:
             raise CameraError("La camara no esta abierta.")
-        ok, frame = self._capture.read()
-        return frame if ok else None
+        return self._reader.buffer.take(self.clock(), self.stale_seconds)
 
     def close(self) -> None:
-        if self._capture is not None:
-            self._capture.release()
-            self._capture = None
+        reader, self._reader = self._reader, None
+        if reader is not None:
+            reader.stop()
+
+    def status(self) -> SourceStatus:
+        if self._reader is None:
+            return SourceStatus(False, 0, 0, None, "cerrada")
+        return self._reader.status()
 
     def describe(self) -> str:
-        kind = "webcam" if isinstance(self.source, int) else "red"
-        return f"{kind} {self.source!r} {self.width}x{self.height}@{self.fps}"
+        kind = "wifi" if is_network(self.source) else "webcam"
+        base = f"{kind} {self.source!r} {self.width}x{self.height}@{self.fps}"
+        if self._reader is None:
+            return base
+        return f"{base} [{self.status().message}]"
 
 
 def usb_webcam(index: int = 0, width: int = 640, height: int = 480, fps: int = 30) -> CameraSource:
@@ -68,6 +293,28 @@ def parse_camera(value: str) -> int | str:
     return text
 
 
-def camera(value: str, width: int = 640, height: int = 480, fps: int = 30) -> CameraSource:
-    parsed = parse_camera(value)
-    return CameraSource(parsed, width, height, fps)
+def camera(
+    value: str,
+    width: int = 640,
+    height: int = 480,
+    fps: int = 30,
+    *,
+    open_timeout: float = 5.0,
+    stale_seconds: float = 0.3,
+    reconnect_delay: float = 0.5,
+    max_reconnect_delay: float = 5.0,
+    factory: CaptureFactory = default_factory,
+    clock: Clock = time.perf_counter,
+) -> CameraSource:
+    return CameraSource(
+        source=parse_camera(value),
+        width=width,
+        height=height,
+        fps=fps,
+        open_timeout=open_timeout,
+        stale_seconds=stale_seconds,
+        reconnect_delay=reconnect_delay,
+        max_reconnect_delay=max_reconnect_delay,
+        factory=factory,
+        clock=clock,
+    )

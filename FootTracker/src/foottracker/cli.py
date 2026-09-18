@@ -8,8 +8,9 @@ import sys
 import time
 
 from .classifier import FootClassifier, MarkerResult, ThresholdMode
+from .probe import probe_stream
 from .protocol import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_RATE, Sequence, packet
-from .source import CameraError, camera
+from .source import CameraError, CameraSource, camera, parse_camera
 
 PREVIEW_WINDOW = "FootTracker - rojo frena, verde acelera"
 
@@ -23,6 +24,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--camera-timeout", type=float, default=5.0, help="segundos maximos para abrir la camara de red")
+    parser.add_argument("--frame-stale", type=float, default=0.3, help="antiguedad maxima del frame para considerarlo imagen")
+    parser.add_argument("--reconnect-delay", type=float, default=0.5, help="espera inicial entre reintentos de camara")
+    parser.add_argument("--probe", action="store_true", help="mide la camara y sale, sin enviar paquetes")
     parser.add_argument("--threshold-mode", choices=[mode.value for mode in ThresholdMode], default=ThresholdMode.PIXELS.value)
     parser.add_argument("--lift-threshold", type=float, default=18.0, help="pixeles de levantamiento en modo pixels")
     parser.add_argument("--relative-lift", type=float, default=0.35, help="fraccion del lado del marcador en modo relative")
@@ -44,19 +49,33 @@ def build_classifier(args: argparse.Namespace) -> FootClassifier:
     )
 
 
-def annotate(frame, classifier: FootClassifier, red: MarkerResult, green: MarkerResult):
+def build_source(args: argparse.Namespace) -> CameraSource:
+    return camera(
+        args.camera,
+        args.width,
+        args.height,
+        args.fps,
+        open_timeout=args.camera_timeout,
+        stale_seconds=args.frame_stale,
+        reconnect_delay=args.reconnect_delay,
+    )
+
+
+def annotate(frame, classifier: FootClassifier, red: MarkerResult, green: MarkerResult, source: str = ""):
     import cv2
 
     cv2.putText(frame, f"ROJO {red.state.value} {'ok' if red.valid else 'sin datos'}", (12, 28), cv2.FONT_HERSHEY_SIMPLEX, .7, (0, 0, 255), 2)
     cv2.putText(frame, f"VERDE {green.state.value} {'ok' if green.valid else 'sin datos'}", (12, 58), cv2.FONT_HERSHEY_SIMPLEX, .7, (0, 255, 0), 2)
     aro = "listo" if classifier.red.calibrated and classifier.green.calibrated else "calibrando, deja los pies apoyados"
     cv2.putText(frame, f"suelo {aro}", (12, 88), cv2.FONT_HERSHEY_SIMPLEX, .55, (255, 255, 255), 1)
+    if source:
+        cv2.putText(frame, f"camara {source}", (12, 118), cv2.FONT_HERSHEY_SIMPLEX, .55, (255, 255, 255), 1)
     return frame
 
 
 def run(args: argparse.Namespace, stdout=sys.stdout) -> int:
     classifier = build_classifier(args)
-    device = camera(args.camera, args.width, args.height, args.fps)
+    device = build_source(args)
     try:
         device.open()
     except CameraError as error:
@@ -68,12 +87,18 @@ def run(args: argparse.Namespace, stdout=sys.stdout) -> int:
     interval = 1.0 / max(args.rate, 1)
     previous = time.perf_counter()
     started = previous
+    reported: tuple[bool, int] | None = None
     print(f"FootTracker: {device.describe()} -> udp://{args.host}:{args.port} a {args.rate} Hz", file=stdout)
     try:
         while True:
             now = time.perf_counter()
             delta = now - previous
             frame = device.read()
+            status = device.status()
+            state = (status.connected, status.reconnects)
+            if reported is not None and state != reported:
+                print(f"FootTracker: camara {status.message}, {status.reconnects} reconexiones", file=sys.stderr)
+            reported = state
             red, green = classifier.process(frame, delta)
             previous = now
             message = packet(sequence.next(), red.state, green.state, red.valid, green.valid)
@@ -83,7 +108,7 @@ def run(args: argparse.Namespace, stdout=sys.stdout) -> int:
             if args.preview and frame is not None:
                 import cv2
 
-                cv2.imshow(PREVIEW_WINDOW, annotate(frame, classifier, red, green))
+                cv2.imshow(PREVIEW_WINDOW, annotate(frame, classifier, red, green, status.message))
                 if cv2.waitKey(1) & 0xFF == 27:
                     break
             if args.duration and now - started >= args.duration:
@@ -103,8 +128,32 @@ def run(args: argparse.Namespace, stdout=sys.stdout) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    return run(build_parser().parse_args(argv))
+def probe_source(args: argparse.Namespace, stdout=sys.stdout) -> int:
+    """Mide la camara y sale: sirve para comprobar una camara Wi-Fi antes de jugar."""
+
+    try:
+        value = parse_camera(args.camera)
+    except CameraError as error:
+        print(f"FootTracker: {error}", file=sys.stderr)
+        return 2
+    seconds = args.duration if args.duration > 0 else 3.0
+    report = probe_stream(
+        value,
+        width=args.width,
+        height=args.height,
+        fps=args.fps,
+        seconds=seconds,
+        open_timeout=args.camera_timeout,
+    )
+    print(f"FootTracker: sonda de {value!r}: {report.describe()}", file=stdout)
+    return 0 if report.opened else 2
+
+
+def main(argv: list[str] | None = None, stdout=sys.stdout) -> int:
+    args = build_parser().parse_args(argv)
+    if args.probe:
+        return probe_source(args, stdout)
+    return run(args, stdout)
 
 
 if __name__ == "__main__":
