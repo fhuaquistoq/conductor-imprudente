@@ -13,9 +13,9 @@ namespace TaxiVR.Bootstrap.Editor
 {
     public static class TaxiVRBuildConfiguration
     {
-        public const string ScenePath = "Assets/_Project/Scenes/Main.unity";
+        public const string ScenePath = "Assets/Main.unity";
         public const string InputPath = "Assets/_Project/Settings/Input/TaxiVR.inputactions";
-        public const string OutputPath = "Builds/WorkUnit0/TaxiVR.exe";
+        public const string OutputPath = "Builds/Playable/TaxiVR.exe";
         public const BuildTarget Target = BuildTarget.StandaloneWindows64;
 
         public static string[] Validate()
@@ -31,8 +31,8 @@ namespace TaxiVR.Bootstrap.Editor
                 || binding.path.Contains("Gamepad", StringComparison.OrdinalIgnoreCase)))
                 errors.Add("TaxiVR action map contains a joystick/gamepad binding.");
             var xr = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Standalone);
-            if (xr?.InitManagerOnStart != true)
-                errors.Add("Standalone XR must initialize automatically for normal PCVR startup.");
+            if (xr?.InitManagerOnStart != false)
+                errors.Add("Standalone XR must not auto-initialize: PlayableRoot owns startup so -taxivr-desktop works.");
             if (xr?.Manager?.activeLoaders?.Any(loader => loader is OpenXRLoader) != true)
                 errors.Add("Standalone OpenXR loader is not configured.");
             return errors.ToArray();

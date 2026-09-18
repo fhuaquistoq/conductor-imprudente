@@ -66,7 +66,7 @@ namespace TaxiVR.Playable.Editor
             RenderSettings.sun = sun; RenderSettings.ambientMode = AmbientMode.Flat; RenderSettings.ambientLight = new Color(.57f,.66f,.73f);
             RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Linear; RenderSettings.fogColor = new Color(.62f,.73f,.78f);
             RenderSettings.fogStartDistance = 105; RenderSettings.fogEndDistance = 175;
-            QualitySettings.shadowDistance = 65; QualitySettings.shadowResolution = ShadowResolution.Medium;
+            QualitySettings.shadowDistance = 30; QualitySettings.shadowResolution = ShadowResolution.Medium;
             var xr = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Standalone);
             if (xr == null || xr.Manager == null) throw new InvalidOperationException("Existing Windows XR settings not found.");
             // Explicit startup lets -taxivr-desktop run without starting the Link/Simulator runtime.

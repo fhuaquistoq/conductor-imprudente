@@ -37,8 +37,8 @@ namespace TaxiVR.Playable
             Instance = this;
             var editorPreview = GameObject.Find("Editor City Preview");
             if (editorPreview != null) editorPreview.SetActive(false);
-            Application.targetFrameRate = 90; Application.runInBackground = true;
-            QualitySettings.vSyncCount = 0; Time.fixedDeltaTime = 1f / 90;
+            Application.targetFrameRate = 72; Application.runInBackground = true;
+            QualitySettings.vSyncCount = 0; Time.fixedDeltaTime = 1f / 72;
             Physics.IgnoreLayerCollision(8, 9, true);
             BuildWorld();
         }
