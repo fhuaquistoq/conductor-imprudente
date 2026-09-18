@@ -14,12 +14,20 @@ namespace TaxiVR.Playable
         public float ReverseSpeed = 7f;
         public float MotorTorque = 1500f;
         public float BrakeTorque = 3200f;
-        public float MaxSteer = 34f;
-        public float MinSteer = 5f;
+        public float MaxSteer = 36f;
+        public float MinSteer = 6f;
         public float SteerRate = 120f;
         public float Downforce = 42f;
         public float AntiRollFactor = .25f;
         public float MinimumDirectionChangeSpeed = 2.5f;
+
+        /// <summary>Resistencia aerodinamica: media densidad por coeficiente por superficie de un turismo. Da
+        /// una velocidad punta natural en lugar de un tope duro.</summary>
+        public float DragCoefficient = .46f;
+
+        /// <summary>Altura del centro de masas sobre el origen del coche. Es lo que hace que la carroceria se
+        /// cargue en la curva y se hunda al frenar; a cero el coche giraria como un patin.</summary>
+        public float CentreOfMassHeight = .42f;
 
         public Rigidbody Body { get; private set; }
         public float Speed => Vector3.Dot(Body.linearVelocity, transform.forward);
@@ -58,10 +66,12 @@ namespace TaxiVR.Playable
             Body = GetComponent<Rigidbody>();
             Body.mass = TotalMass;
             Body.linearDamping = .04f;
-            Body.angularDamping = .9f;
+            // Amortiguacion angular baja: el coche tiene que poder cabecear al frenar y balancearse en la curva.
+            // El tope de velocidad angular evita que un golpe lo mande a girar como una peonza.
+            Body.angularDamping = .45f;
             Body.interpolation = RigidbodyInterpolation.Interpolate;
             Body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            Body.centerOfMass = new Vector3(0, .27f, .06f);
+            Body.centerOfMass = new Vector3(0, CentreOfMassHeight, .02f);
             Body.maxAngularVelocity = 6f;
             BuildWheels();
         }
@@ -89,12 +99,14 @@ namespace TaxiVR.Playable
             wheel.suspensionDistance = SuspensionDistance;
             wheel.forceAppPointDistance = .08f;
             var spring = wheel.suspensionSpring;
-            spring.spring = 38000;
-            spring.damper = 2900;
+            // Muelle calculado para que el coche se asiente justo por debajo de su recorrido medio: si el muelle
+            // empuja mas que el peso, el coche va sobre las puntas y pierde agarre en cuanto se apoya en una rueda.
+            spring.spring = 26000;
+            spring.damper = 2200;
             spring.targetPosition = RestCompression;
             wheel.suspensionSpring = spring;
-            wheel.forwardFriction = Curve(1.35f, .5f);
-            wheel.sidewaysFriction = Curve(1.75f, .42f);
+            wheel.forwardFriction = Curve(1.55f, .55f);
+            wheel.sidewaysFriction = Curve(1.5f, .48f);
             wheels[index] = wheel;
             return wheel;
         }
@@ -191,12 +203,16 @@ namespace TaxiVR.Playable
             foreach (var wheel in motor) wheel.motorTorque = torque;
 
             rearGrip = Mathf.MoveTowards(rearGrip, Skidding ? .55f : 1f, 2.5f * Time.fixedDeltaTime);
-            var rear = Curve(1.75f * rearGrip, Skidding ? .62f : .42f);
+            var rear = Curve(1.5f * rearGrip, Skidding ? .62f : .48f);
             wheels[2].sidewaysFriction = rear;
             wheels[3].sidewaysFriction = rear;
 
             AntiRollBars();
             if (GroundedWheels > 0) Body.AddForce(-transform.up * Downforce * Mathf.Abs(speed));
+            // La resistencia del aire crece con el cuadrado de la velocidad, asi que el coche encuentra su
+            // velocidad punta solo, y a baja velocidad no estorba.
+            var flat = new Vector3(Body.linearVelocity.x, 0, Body.linearVelocity.z);
+            Body.AddForce(-flat * (DragCoefficient * flat.magnitude));
         }
 
         void AntiRollBars()
@@ -239,20 +255,36 @@ namespace TaxiVR.Playable
 
         public bool ChangeDirection(int direction)
         {
-            if (Mathf.Abs(Speed) > MinimumDirectionChangeSpeed) return false;
+            // Ir a punto muerto siempre es seguro; engranar una marcha exige ir casi parado.
+            if (direction != 0 && Mathf.Abs(Speed) > MinimumDirectionChangeSpeed) return false;
             Direction = direction;
             Cruise = false;
             return true;
         }
 
+        /// <summary>Devuelve el taxi a la calzada mas cercana. Elige el primer tramo del cruce que la ciudad haya
+        /// dibujado, porque en una manzana rectangular el lado que falta es justo el que no se puede pisar, y
+        /// coloca el coche en el carril que le toca por el lado de circulacion.</summary>
         public void ResetToRoad()
         {
             Body.linearVelocity = Vector3.zero;
             Body.angularVelocity = Vector3.zero;
             Body.Sleep();
             Cruise = false;
-            Body.position = new Vector3(Mathf.Round(Body.position.x / 64) * 64 + 3, .1f, Mathf.Round(Body.position.z / 64) * 64 + 22);
-            Body.rotation = Quaternion.identity;
+            Direction = 1;
+
+            var node = new Vector2Int(Mathf.RoundToInt(Body.position.x / CityMath.Block), Mathf.RoundToInt(Body.position.z / CityMath.Block));
+            Vector2Int[] steps = { Vector2Int.up, Vector2Int.right, Vector2Int.down, Vector2Int.left };
+            var forward = Vector3.forward;
+            foreach (var step in steps)
+            {
+                if (CityGrid.IsBlocked(node, node + step)) continue;
+                forward = new Vector3(step.x, 0, step.y);
+                break;
+            }
+            var lane = new Vector3(forward.z, 0, -forward.x) * 3f;
+            Body.position = new Vector3(node.x * CityMath.Block, .1f, node.y * CityMath.Block) + forward * 20f + lane;
+            Body.rotation = Quaternion.LookRotation(forward, Vector3.up);
             Body.WakeUp();
             steerAngle = 0;
             ThrottleAnalog = BrakeAnalog = 0;
@@ -264,8 +296,10 @@ namespace TaxiVR.Playable
             if (collision.relativeVelocity.magnitude < 1.5f || Time.time - lastCollision < 1) return;
             lastCollision = Time.time;
             Collisions++;
+            // El impacto no se amortigua a mano: el motor de fisicas ya reparte el momento entre los dos cuerpos,
+            // y recortar la velocidad aqui era lo que hacia que chocar se sintiera como frenar en seco.
+            // Lo unico que se toca es el control, porque el crucero no tiene sentido despues de un golpe.
             Cruise = false;
-            Body.linearVelocity *= .45f;
             Player?.Pulse(true); Player?.Pulse(false);
         }
     }

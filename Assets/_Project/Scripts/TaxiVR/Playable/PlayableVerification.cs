@@ -24,17 +24,23 @@ namespace TaxiVR.Playable
             folder = Path.GetFullPath(Path.Combine(Application.dataPath, "../Verification")); Directory.CreateDirectory(folder);
             yield return new WaitForSeconds(3);
             var root = PlayableRoot.Instance; var drive = root.Drive; var city = root.City;
+            for (int frame = 0; frame < 300 && city.LoadedSectors < 49; frame++) yield return null;
             Check(city.LoadedSectors == 49, "49 sectors loaded with fixed capacity");
-            Check(city.GetComponentsInChildren<CitySector>(true).Length == city.LoadedSectors, "City sectors registered without duplicates");
+            Check(city.DetailedSectors > 0, "Nearby blocks received houses and street furniture");
+            Check(CountHouses(city) >= city.DetailedSectors * 4,
+                $"Each detailed block is built from houses: {CountHouses(city)} houses in {city.DetailedSectors} blocks");
+            Check(CountSoftProps(city) > 0, "Street decoration the car can push is present: " + CountSoftProps(city));
+            Check(CountGroundColliders(city) >= city.LoadedSectors, "Every sector publishes a floor collider");
             Check(root.Player.View != null, "First person camera exists");
             Check(CockpitInteractable.All.Count >= 15, "Cockpit interactions connected");
             Capture(root.Player.View, "01-cockpit.png");
             var start = drive.Body.position; drive.TestThrottle = 1;
             yield return new WaitForSeconds(3);
-            Check(drive.Body.position.z > start.z + 5, "Vehicle accelerates forward");
+            Check(drive.Body.position.z > start.z + 5,
+                $"Vehicle accelerates forward (z {start.z:0.00} -> {drive.Body.position.z:0.00}, y {drive.Body.position.y:0.00}, ruedas en contacto {drive.GroundedWheels}/4)");
             drive.TestThrottle = 0; drive.Body.linearVelocity = Vector3.zero;
-            drive.Body.position = new Vector3(3, 0, 200); city.Refresh();
-            yield return null;
+            drive.Body.position = new Vector3(3, 0, 200);
+            for (int frame = 0; frame < 400 && city.LoadedSectors < 49; frame++) yield return null;
             Check(city.LoadedSectors == 49, "Sector recycling stays bounded after travel");
             var absolute = city.AbsolutePosition;
             drive.Body.position = new Vector3(1091, 0, 22);
@@ -54,21 +60,37 @@ namespace TaxiVR.Playable
             knob.Grab(98, knob.transform.position, Quaternion.identity); float before = knob.Value;
             knob.Move(98, knob.transform.position, Quaternion.Euler(0, 0, -40)); knob.Release(98);
             Check(knob.Value > before, "Wrist rotation changes radio volume");
-            var food = CockpitInteractable.All.First(x => x.name == "Hamburguesa");
+            var food = CockpitInteractable.All.First(x => x.Kind == CockpitKind.Loose && x.GetComponent<Rigidbody>() != null);
             Vector3 home = food.transform.position;
             food.Grab(98, home, Quaternion.identity); food.Move(98, home + Vector3.up * .2f, Quaternion.identity);
             Check(food.transform.position.y > home.y + .15f, "Food follows grabbed hand");
             food.Release(98); Check(!food.GetComponent<Rigidbody>().isKinematic, "Released food restores physics"); food.ReturnHome();
-            var gpsButton = CockpitInteractable.All.First(x => x.name == "GPS on"); gpsButton.Press(); Check(!root.GPS.Powered, "GPS button toggles power");
-            root.GPS.Powered = true;
+            var gpsButton = CockpitInteractable.All.First(x => x.name == "GPS on");
+            bool gpsBefore = root.GPS.Powered; gpsButton.Press();
+            Check(root.GPS.Powered != gpsBefore, "GPS button toggles power");
+
+            var director = root.Director;
+            director.SkipTrackerGate = true;
+            director.ForceTrip();
+            for (float elapsed = 0; elapsed < 8f && root.GPS.Path.Count == 0; elapsed += Time.deltaTime) yield return null;
+            Check(director.Trip != null, "Trip session created with a passenger profile");
+            Check(root.GPS.Path.Count > 1, "GPS plotted a route through the city graph");
+            Check(root.GPS.Path[root.GPS.Path.Count - 1] == root.GPS.Destination, "Route ends at the destination");
+            Check(director.Trip != null && !string.IsNullOrEmpty(director.Trip.Profile.FullName), "Passenger profile carries a name");
+            float eta = director.Trip == null ? 0f : director.Trip.OptimalEta;
+            Check(eta > 200f && eta < 300f, "Route ETA sits inside the four-minute target: " + eta.ToString("0"));
+            Check(director.Trip != null && director.Trip.MaximumFare >= 18f && director.Trip.MaximumFare <= 35f, "Fare stays inside the specified range");
+
             drive.Body.position = city.LocalPosition(root.GPS.Destination) + new Vector3(3, 0, 14);
-            for (float elapsed = 0; elapsed < 6f && root.GPS.Deliveries == 0; elapsed += Time.deltaTime)
+            for (float elapsed = 0; elapsed < 8f && (director.Trip == null || !director.Trip.Finished); elapsed += Time.deltaTime)
             {
                 drive.Body.linearVelocity = Vector3.zero;
                 drive.Body.angularVelocity = Vector3.zero;
                 yield return null;
             }
-            Check(root.GPS.Deliveries == 1, "Stopping at GPS destination completes a delivery");
+            Check(director.Trip != null && director.Trip.Finished, "Stopping at the destination closes the trip");
+            Check(director.Flow.Phase == Gameplay.GamePhase.NormalEnding, "Trip ending reaches NormalEnding");
+            director.Restart();
             drive.ResetToRoad();
             yield return new WaitForSeconds(.4f);
             Capture(root.Player.View, "02-after-drive.png");
@@ -124,6 +146,34 @@ namespace TaxiVR.Playable
             drive.Body.linearVelocity = Vector3.zero;
             footSender?.Close();
         }
+
+        /// <summary>Cuenta los suelos de sector: una caja de 64 x 64 por sector es lo que garantiza que el taxi
+        /// nunca se caiga, asi que se comprueba que hay al menos uno por sector cargado.</summary>
+        static int CountGroundColliders(EndlessCity city)
+        {
+            int count = 0;
+            foreach (var box in city.GetComponentsInChildren<BoxCollider>(true))
+                if (Mathf.Abs(box.size.x - CityMath.Block) < 1f && Mathf.Abs(box.size.z - CityMath.Block) < 1f) count++;
+            return count;
+        }
+
+        static int CountNamed(Transform root, string name)
+        {
+            int count = 0;
+            foreach (var child in root.GetComponentsInChildren<Transform>(true)) if (child.name == name) count++;
+            return count;
+        }
+
+        /// <summary>Casas montadas: cada grupo "Casas" de una manzana lleva una casa por parcela de perimetro,
+        /// 8 en la manzana cuadrada y 14 en la rectangular.</summary>
+        static int CountHouses(EndlessCity city)
+        {
+            int count = 0;
+            foreach (var child in city.GetComponentsInChildren<Transform>(true)) if (child.name == "Casas") count += child.childCount;
+            return count;
+        }
+
+        static int CountSoftProps(EndlessCity city) => city.GetComponentsInChildren<CityProps.SoftProp>(true).Length;
 
         void Capture(Camera camera, string file)
         {

@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b4e7784355c4f54b966d75f281fdb94, type: 3}
+  m_Name: DowntownCityCatalog
+  m_EditorClassIdentifier: TaxiVR.Runtime::TaxiVR.City.CityCatalog
+  LoadRadius: 3
+  DetailRadius: 1
+  SectorTemplates:
+  - {fileID: 1304702751762604523, guid: 39e640bc89c9adf42ad89961a8d26196, type: 3}
+  - {fileID: 3646719505567088049, guid: 59944fa18a682bf419cc3aa1e70cb85e, type: 3}
+  - {fileID: 8288087941892759105, guid: 42bad23147f3e6e488f8d94e2c922226, type: 3}
+  - {fileID: 1000498175976441621, guid: a54ce5749e529d4499907995839c917e, type: 3}
+  - {fileID: 7238529445860072851, guid: abef34878b0d5fc4abb8ab460288d740, type: 3}
+  - {fileID: 4488032536064225946, guid: ba8811e86bd582b4baed0894942e600c, type: 3}
+  BuildingPrefabs:
+  - {fileID: 7827866268060646068, guid: 4e19a2bc66a327e40af520a5d8614229, type: 3}
+  - {fileID: 6382273675696124000, guid: c1a368327d534bb4a8effaf2783c0402, type: 3}
+  - {fileID: 7260827730411477635, guid: b2d6d729d753172478e51d724c6f18f3, type: 3}
+  Asphalt: {fileID: 2100000, guid: 5134542f60ae9e344bc26bedf9d3b98f, type: 2}
+  Pavement: {fileID: 2100000, guid: 04d463cdaafc62d4599aaa37bc700444, type: 2}
+  Grass: {fileID: 2100000, guid: 17bb388d5879b86469794ae252435f9a, type: 2}
+  FacadeDefault: {fileID: 2100000, guid: a67c2bcbeabc3004fa6c29a545498360, type: 2}
+  Lamp: {fileID: 2100000, guid: a60e85a34732fe54d9bcf8f561752b07, type: 2}

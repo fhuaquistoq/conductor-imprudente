@@ -1,100 +1,220 @@
-# Taxi VR — versión jugable
+# El Taxista Imprudente — versión jugable completa
 
-Escena: `Assets/_Project/Scenes/TaxiVR_Playable.unity`. Conserva `Main.unity` como escena histórica del bootstrap. Motor instalado: Unity **6000.6.0f1**; no se ha cambiado la versión del Editor.
+Escena de producción: **`Assets/Main.unity`** (única escena de la compilación).
+Motor: Unity **6000.6.0f1**. Plataforma objetivo: Meta Quest 2/3/3S independiente, con modo escritorio para pruebas.
 
-## Iniciar
+## Qué es
+
+Juego de conducción arcade en VR sentada. Eres un taxista: recibes una hoja impresa con el perfil del pasajero,
+lo recoges (o te largas y te persigue), conduces una ciudad procedural infinita siguiendo —o ignorando— el GPS,
+atiendes sus peticiones y cobras según lo bien o mal que lo hayas tratado.
+
+## Cómo arrancar
 
 ### En Unity, con el simulador de Meta
 
-Atajo: **TaxiVR > Playable > 5 - Jugar con simulador XR** activa el simulador y entra en Play de una vez. Paso a paso:
+1. **TaxiVR > Playable > 4 - Activar simulador XR**.
+2. Abre `Assets/Main.unity` y pulsa **Play**.
 
-1. Instala el **Meta XR Simulator** (aplicación independiente).
-2. **TaxiVR > Playable > 4 - Activar simulador XR** (equivale a `Window > Meta > Meta XR Simulator > Activate`). Deja el runtime OpenXR del Editor apuntando al simulador.
-3. Abre la escena jugable y pulsa **Play**. El simulador se abre solo al entrar en Play.
+Menú **TaxiVR > Playable > 5 - Jugar con simulador XR** hace ambos pasos de una vez.
 
-La aplicación intenta siempre XR primero y espera hasta 120 frames a que el visor enganche; si no aparece ninguno, cae a teclado y ratón y lo avisa en la consola. Solo se fuerza escritorio con la casilla **Force Desktop** o con el argumento `-taxivr-desktop`.
-
-**Si el juego arranca en escritorio**, es casi siempre esto: la activación es una variable de entorno del proceso del Editor (`XR_SELECTED_RUNTIME_JSON`), no un ajuste del sistema. Si el simulador no está activo, el runtime vuelve al de Quest Link (`oculus_openxr_64.json`); sin visor conectado OpenXR falla con `ErrorFormFactorUnavailable` y la aplicación cae a escritorio. Vuelve a ejecutar **TaxiVR > Playable > 4**; el estado aparece en la consola y en `Logs/TaxiConfigurationChecks.txt`.
-
-Para probar con **manos** en lugar de mandos, abre el panel **Inputs** del simulador y elige el modo de manos para cada lado. La aplicación usa las articulaciones reales cuando el runtime las ofrece (XR Hands); si solo hay mandos, dibuja manos virtuales dirigidas por ellos, sin cambiar nada del juego.
-
-> Ruido conocido: el paquete **MR Utility Kit** de Meta se inicializa solo y se queja contra el simulador (`ErrorFunctionUnsupported`, un `NullReferenceException` en `MRUK.Shared.cs`). El juego no usa ese paquete; se puede recortar la lista de paquetes de Meta más adelante.
+Si no hay visor se cae a teclado y ratón y lo avisa en consola. Para forzar escritorio: casilla **Force Desktop**
+o el argumento `-taxivr-desktop`.
 
 ### Ejecutable
 
-En `Builds/Playable`, abrir **Jugar - Escritorio.bat** (teclado y ratón) o **Jugar - VR.bat** (OpenXR: visor o simulador). También sirve `TaxiVR.exe -taxivr-desktop` y `TaxiVR.exe`. Conservar la carpeta del ejecutable completa.
-
-## Interfaz
-
-**El juego no muestra UI 2D**: ni textos de ayuda, ni carteles, ni menús superpuestos. Todo lo que el jugador lee está dentro del mundo (velocímetro, pantalla de radio, GPS, papeles). El diagnóstico interno existe, pero **solo** se activa con el argumento `-taxivr-debug` o marcando **Show Debug In Editor** en `Taxi VR - playable composition`; en ese caso la tecla F1 lo muestra u oculta.
+`TaxiVR.exe -taxivr-desktop` para teclado y ratón; `TaxiVR.exe` para OpenXR.
 
 ## Controles
 
 | Acción | Escritorio | VR |
 |---|---|---|
-| Mirar | Mover el ratón (clic para capturar el cursor, Esc lo libera) | Mover cabeza |
-| Agarrar | Mantener clic izquierdo sobre el objeto | Pinza índice-pulgar o grip del mando |
-| Tocar un botón | Clic izquierdo | Acercar la punta del índice |
-| Girar volante | A/D, o agarrar y arrastrar | Agarrar el aro con una o dos manos y girar |
-| Acelerar / frenar | W / S o Espacio | Gatillo derecho / izquierdo |
-| Acelerar / frenar con los pies | `FootTracker.exe` o `emit_mock` | Marcadores verde (acelera) y rojo (frena) |
-| Conducción sin mandos | C activa crucero suave | Botones físicos CRUCERO y FRENAR |
-| Avanzar / reversa | E / Q; agarrar la palanca y desplazarla | Agarrar y desplazar la palanca D/R |
-| Ajustar radio o espejo | Agarrar y arrastrar; rueda del ratón | Agarrar y girar muñeca |
-| Acercar comida o papel | Agarrar y usar rueda del ratón | Mover la mano |
-| Centrar vista | H | H en el PC, mirando hacia delante |
-| Recuperar taxi en la calle | R | R en el PC |
-| Pausa / liberar cursor | Esc | Esc en el PC |
+| Mirar | Ratón (clic para capturar, Esc libera) | Cabeza |
+| Agarrar | Clic izquierdo sobre el objeto | Pinza índice-pulgar |
+| Tocar un botón | Clic izquierdo | Punta del índice |
+| Volante | A / D, o agarrar y arrastrar | Agarrar el aro con una o dos manos |
+| Acelerar / frenar | W / S o Espacio | Pie verde / pie rojo (FootTracker) |
+| Hablar al pasajero | Mantener **V** | Voz por el micrófono del visor |
+| Marcha F / O / R | Q / E | Agarrar la palanca y desplazarla |
+| Centrar vista | H | H, o ambas manos abiertas 2 s por debajo de 2 km/h |
+| Volver a la calle | R | R en el PC |
 
-El GPS dibuja las calles, la ruta azul y el destino amarillo. Estacionar **dos segundos** en la zona azul completa una entrega y genera otro destino. RUTA elige otro destino. El mundo sigue disponible para conducción libre.
+## Bucle de partida
 
-## Conducción
-
-El taxi usa **física real con `WheelColliders`**: cuatro ruedas con suspensión, transferencia de peso, motor en el eje trasero, frenada por rueda, barra antivuelco, carga aerodinámica y dirección sensible a la velocidad (34° parado, 5° a velocidad máxima). Ya no se fija la velocidad a mano ni se congelan los ejes: el coche se apoya en sus ruedas y se puede volcar si se conduce mal.
-
-El mando de los pedales es digital (0 o 1) y se convierte en una rampa interna de ~0,2 s para que el coche no dé tirones. Con los dos pedales a la vez se activa el derrape: humo, chirrido y pérdida temporal de agarre.
-
-El cambio D/R es una palanca con recorrido real y detente: se agarra, se desplaza y solo cambia de marcha al superar el umbral. Si el taxi va demasiado rápido (más de 2,5 m/s) el cambio no se engrana y la palanca vuelve sola a la marcha actual, para que el estado visual nunca mienta.
-
-## Ciudad
-
-La ciudad es **procedural**: cada manzana se genera a partir de un hash de su coordenada, así que es reproducible pero **no es contenido guardado en la escena**. La escena jugable se mantiene ligera a propósito.
-
-Para **ver y revisar la ciudad en el editor** sin entrar en Play usa el menú **TaxiVR > Playable > 0 - Vista previa de la ciudad**. Genera el distrito en una escena nueva y sin guardar, con luz, niebla y cámara libre. Es solo para inspección: no la añadas a la compilación.
-
-> Hornear el distrito dentro de la escena jugable está descartado: se probó y el ejecutable Windows arrancaba con `level0` corrupto (con y sin instancias de prefab, con y sin LODGroups, en build limpio). Con la escena ligera el ejecutable pasa todas las verificaciones.
-
-Si quieres que la ciudad sea realmente editable, el camino correcto es dirigir el diseño **por datos** (un ScriptableObject con el reparto de manzanas, alturas y usos) en lugar de reglas por hash; el generador leería ese asset y los cambios se verían al instante en la vista previa.
-
-## Contenido de esta versión
-
-- Grilla vial sin borde práctico, 49 sectores residentes, reciclaje fuera de la distancia visible, niebla y cambio de origen a los 1.024 metros.
-- Edificios de DowntownCity, casas sencillas, patios, árboles, veredas y cruces peatonales. Peatones estilizados en las manzanas cercanas. Ocho vehículos circulan por carriles y frenan ante semáforos y obstáculos.
-- Interior del modelo `Taxi_Full.fbx`, cámara sentada, volante con agarre a dos manos, palanca D/R, radio con tres pistas sintetizadas, GPS ajustable, retrovisores con cámaras traseras, ventana izquierda, café, hamburguesa y papel agarrables.
-- **XR Hands como entrada principal**: si el runtime ofrece hand tracking se usan las articulaciones reales de los dedos; si no, se representan manos virtuales dirigidas por los mandos Touch. El agarre se libera al perder el seguimiento.
-- **Tracking de pies** por webcam: `FootTracker/` clasifica dos marcadores y envía el estado por UDP local a 30 Hz. Los pedales arrancan **desarmados** con ambos pies apoyados y se arman al levantar un pie por primera vez; un marcador perdido es `unknown`, nunca `down`, y una pérdida prolongada va a neutro.
-
-## Pedales por visión artificial
-
-El ejecutable no abre la cámara: `FootTracker/` es un proceso Python independiente que clasifica los marcadores y envía por UDP. Para probarlo sin cámara:
-
-```powershell
-cd FootTracker
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m tools.emit_mock --script truth-table
+```
+Boot → WaitForPedalTracker → WakeUp → BriefPrinted → WaitingPassenger
+                                                      ├── TripActive → Arrived → final normal
+                                                      └── PassengerChasing → PoliceChase
+                                                                              ├── PoliceCaught
+                                                                              └── PoliceEscaped
 ```
 
-Con cámara real: `.\.venv\Scripts\python.exe -m foottracker --camera 0 --preview`, dejando los pies apoyados ~0,75 s para calibrar. La clasificación real con webcam es una comprobación manual de hardware; los tests usan imágenes sintéticas y el contrato de cable se verifica con un receptor UDP real.
+- **Arranque (0–9 s)**: pantalla negra, apertura radial de ojos a los 5–6,5 s, impresora de la hoja a los 7–9 s.
+  El juego espera al FootTracker conectado y calibrado (20 s de gracia para poder probar sin hardware).
+- **Pasajero**: aparece 3 s después de imprimirse la hoja. Si el taxi va por debajo de 1 km/h sube por la puerta
+  trasera derecha en 4 s. Si arrancas por encima de 10 km/h sin él, te persigue; puedes parar y recogerlo con −10
+  de penalización, o huir y provocar la persecución policial.
+- **Viaje**: el GPS se enciende al subir el pasajero y traza la ruta sobre el grafo. Detenerse 2 s en la zona
+  amarilla cierra el viaje, calcula calidad, puntualidad y cobro.
+- **Finales**: `GOOD_ON_TIME`, `GOOD_LATE`, `BAD_ON_TIME`, `BAD_LATE`, más `POLICE_CAUGHT` y `POLICE_ESCAPED`.
+  A los 8 s de animación del pasajero la partida se reinicia **sin cambiar de escena**.
+
+## Sistemas implementados
+
+### Ciudad (`Assets/_Project/Scripts/TaxiVR/Playable/CityGrid.cs`)
+Rejilla urbana determinista de 64 m. **Todas las calles son rectas y todos los cruces existen**: no hay calles
+que aparezcan y desaparezcan, porque el mundo es una cuadrícula y la misma función decide la geometría y el
+grafo, de modo que el GPS nunca puede mandar al taxista por una calle que no está dibujada.
+
+- **Manzanas**: cuadradas de 3 × 3 parcelas (8 casas) o rectangulares de 3 × 6 (14 casas), en ambos casos con
+  el **centro vacío**. La manzana rectangular ocupa dos sectores y se come la calle intermedia, que desaparece
+  también del grafo.
+- **Calzada** de 12 m (dos carriles de 3 m por sentido) más 4 m de acera: el bordillo a 15 cm es lo que separa
+  visual y físicamente la calle de la manzana.
+- **Superficies**: calzada, acera, césped del patio interior, eje amarillo y pasos de cebra, todo en mallas
+  combinadas por material, con las coordenadas de textura en metros de mundo para que no haya costuras al
+  cruzar de sector. Cada sector reparte su cuadrado en regiones y pinta cada una una sola vez: ni huecos por
+  los que caerse ni superficies coplanares peleándose por el mismo píxel.
+- **Decoración dura** (el taxi no la mueve): casas del kit, árboles del patio, farolas, bancos, bocas de riego,
+  señales, vallas, pivotes, jardineras, semáforos. **Decoración blanda** (el taxi la tira y la arrastra):
+  contenedores, cajas, bidones, conos, manholes sueltos y el género del puesto, con masas de 0,6 a 22 kg y
+  reciclado automático si salen del mundo.
+- **Streaming** (`EndlessCity.cs`): anillo de 7 × 7 sectores. El sector se monta en **dos fotogramas** —suelo
+  primero, casas y decoración después— para que cruzar de manzana no cueste un tirón, y el detalle solo se
+  monta a un sector de distancia. Cada sector lleva su propio colisionador de 64 × 64 m, así que **el suelo
+  existe siempre**, incluso antes de que la manzana esté decorada; si aun así el taxi cayera, se le devuelve a
+  la calzada más cercana.
+- **Silueta lejana**: fuera del radio de detalle, cada manzana se sustituye por un volumen con la textura de
+  fachadas lejanas, para que la ciudad siga teniendo perfil dentro de la niebla sin pagar el precio de las casas.
+
+### Peatones (`CityTrafficSystem.cs`, `PedestrianLook.cs`)
+Cuerpos distintos (hombre/mujer × campesino/guardabosques/superhéroe) con peinados y barbas injertados sobre el
+mismo esqueleto, y **ciclo de caminata retargetado** desde la librería de animaciones del proyecto: el animador
+ajusta su velocidad a la del peatón para que la zancada no patine. El recorrido es el anillo de acera **de la
+manzana**, medido sobre la manzana y no sobre el sector, así que también funciona en las manzanas rectangulares;
+si el esqueleto o el controlador no están, el peatón conserva la marcha procedural.
+
+### Grafo vial (`Gameplay/CityGraph.cs`)
+A\* y **Yen K = 5** sobre la rejilla, con alternativas viables si su ETA ≤ 1,35× la óptima y su solape de aristas
+≤ 75 %. El sentido único se mantiene en un 15 % de las calles, que es lo que da vida a la penalización por ir en
+sentido contrario; callejones y cierres quedan a cero porque en una ciudad de rejilla no aportan nada. La ciudad
+conecta el grafo con `Blocked`, de modo que la calle que se come una manzana rectangular desaparece también para
+el navegador. **Selección de destino**: exige ≥ 4 rutas viables y una ETA inicial de 225–255 s, corrigiendo la
+distancia iterativamente porque sortear destinos al azar casi nunca cae dentro del margen. **Recalculado** solo
+cuando el taxi se aleja más de 10 m de la ruta durante 1 s, no en cada frame.
+
+### Pasajero
+12 perfiles deterministas (nombre, destino, velocidad, comida, conversación, temperatura, urgencia). Emociones
+`Fear`, `Anger`, `Trust`, `Comfort` con expresiones `Calm/Happy/Concerned/Scared/Angry/Crying`. Voz sintetizada.
+La hoja impresa es un objeto físico agarrable y arrugable (compresión a dos manos por debajo de 12 cm durante 0,5 s
+→ bola de papel).
+
+### Puntuación
+Empieza en 100 y no sale de [0, 100]. Tabla completa de penalizaciones (papelera −1, barrera −2, árbol/edificio −3,
+vehículo civil −3, colisión grave −6, peatón −15, rojo −3, sentido contrario −1/3 s, recuperación −10, recogida
+tardía −10). Conformidad de velocidad, temperatura y conversación, peticiones (correcta / ignorada / incorrecta),
+plazo (ETA + 75 s, urgente + 20 s), calidad de servicio (corte en 60) y tarifa `S/ 8 + km × 6 + 5 urgente` con
+multiplicadores 1,00 / 0,80 / 0,60 / 0,35.
+
+### Peticiones
+Exactamente tres, a los 55 s (comida), 115 s (radio) y 175 s (temperatura), cada una con 20 s de ventana. Se
+responden con el objeto que entregas, la emisora que pones o la temperatura que ajustas.
+
+### Tráfico, semáforos y peatones (`CityTrafficSystem.cs`)
+18 coches activos de 32 en reserva, con física completa dentro de 35 m y seguimiento cinemático fuera; reciclado
+pasados 120 m y fuera de la vista. Densidad 0–1 recalculada cada 10 s. Semáforos 20 s verde / 3 s ámbar / 1 s todo
+rojo por eje (ciclo 48 s), fuente única de verdad para coches, lámparas y penalización por rojo. 24 peatones activos
+de 48, reducidos a 12 por encima de 40 km/h.
+
+### Policía (`PoliceSystem.cs`)
+3 coches: 1 perseguidor y 2 interceptores. Aparecen a 100–150 m y siempre fuera de la vista. Captura: por debajo de
+1 km/h durante 4 s con ≥ 2 coches a menos de 5 m. Escape: sin ningún coche a menos de 120 m y con más de 200 m de
+distancia vial durante 45 s.
+
+### Interior
+Volante cinemático (−450°…+450°, una o dos manos), palanca F/O/R con detente, radio con cinco canciones offline
+sintetizadas, clima frío/neutro/cálido, seis alimentos agarrables, espejos ajustables y **solo el retrovisor interior
+se desprende** (18 cm de su anclaje durante 250 ms).
+
+### Seguridad y recuperación
+Sin barra de vida: los golpes cuestan puntos y asustan al pasajero. Si el taxi queda volcado más de 70° y por debajo
+de 2 km/h durante 5 s, se funde a negro, se recoloca y cuesta −10.
+
+## Rendimiento
+
+Objetivo 72 Hz (presupuesto 13,89 ms) en Quest 2. Configuración aplicada: Vulkan único, Multiview, 4× MSAA,
+HDR y post-proceso desactivados, SRC Batcher e instancing activos, sombra direccional a 30 m con dos cascadas,
+niebla lineal 105→175 m, FFR medio y `AndroidEnableSustainedPerformanceMode`.
+
+**Sin verificar**: el presupuesto real de CPU/GPU, el conteo de batches y el rendimiento sostenido a 72 Hz
+necesitan una sesión con hardware o con el simulador. La verificación de escritorio solo mide FPS del editor.
 
 ## Verificación reproducible
 
-- Tests de edición: `TaxiVR.Tests.EditMode`, incluidos sectores negativos, semáforos excluyentes, salto angular del volante, hash estable, ruta A* conectada y la máquina de pedales (tabla completa, armado, `unknown`, debounce, pérdida y recuperación).
-- Tests Python: `python -m pytest` en `FootTracker/`, con clasificación sobre imágenes sintéticas y contrato de cable contra un receptor UDP real.
-- Verificaciones de configuración: menú **TaxiVR > Playable > 2 - Verify configuration**, resultado en `Logs/TaxiConfigurationChecks.txt`.
-- Integración del ejecutable: `TaxiVR.exe -taxivr-desktop -taxivr-verify -logFile verification-player.log`. Ejecuta conducción, registro de manzanas, reciclaje, cambio de origen, agarre, volumen, GPS, entrega y la **tabla de pedales por UDP real**; genera `Verification/results.txt` y tres capturas junto a la build, y sale con código 0 o 3.
-- La prueba de escritorio no verifica la imagen estereoscópica, ergonomía, tracking real, compatibilidad de Link ni rendimiento a 72/90 Hz con visor. Esas comprobaciones requieren una sesión de hardware o del simulador.
+- **Tests de edición**: `TaxiVR.Tests.EditMode`, **137 pruebas**. Cubren la rejilla urbana (una manzana por
+  sector, 8 casas en el cuadrado y 14 en el rectángulo, la calle interior cerrada, simetría de los cierres,
+  parcelas sin solape, conectividad del grafo y alternativas de destino), el grafo (conectividad, densidad,
+  sentidos únicos, cierres, A\*, Yen, destinos), el reglamento completo (penalizaciones, conformidad, peticiones,
+  plazos, tarifas, finales), los 12 pasajeros, la máquina de estados, el guion de arranque, los pedales y la
+  composición de la escena de producción.
+- **Contraste del arte**: `TaxiVR > City > Wire generated model slots` enlaza edificios, árboles, decoración dura
+  y blanda, los seis cuerpos de peatón, los peinados, el controlador de caminata y las texturas de calzada y
+  acera. **Hay que ejecutarlo una vez** después de abrir el editor: sin él la ciudad se dibuja con los materiales
+  planos y sin casas.
+- **Tests Python**: `python -m pytest` en `FootTracker/`.
+- **Integración del ejecutable**:
+  `TaxiVR.exe -taxivr-desktop -taxivr-verify -logFile verification-player.log` ejecuta conducción, registro y
+  reciclado de manzanas, origen flotante, agarre, volumen, GPS, viaje completo con ETA, entrega, finales y la tabla
+  de pedales por UDP real; genera `Verification/results.txt` y tres capturas.
+  En el editor el mismo arnés se lanza con `runtime-check`. **Último resultado: 30/30 en PASS, 0 errores.**
 
 ## Código
 
-`Assets/_Project/Scripts/TaxiVR/Playable/` contiene los sistemas independientes de ciudad, vehículo, manos, interacciones, GPS, pedales y composición. `PlayableBuilder` fija referencias reales a los assets, hornea el distrito y genera la escena. El puente de desarrollo en `Assets/Editor/TaxiDevelopmentBridge.cs` procesa únicamente comandos locales predeterminados desde `Logs/TaxiCommand.txt`; no abre puertos ni ejecuta código arbitrario.
+```
+Assets/_Project/Scripts/TaxiVR/
+├── Bootstrap/        arranque XR, diagnóstico, escena
+├── City/             CityCatalog y CitySectorTemplate (assets de ciudad)
+├── Gameplay/         lógica pura y comprobable: CityGraph, ScoreSystem,
+│                     TripSession, GameStateMachine, PassengerProfile
+└── Playable/         comportamientos de escena: GameDirector, PassengerAgent,
+                      PassengerSheet, PoliceSystem, CityTrafficSystem,
+                      InteriorControls, VehicleAssist, TaxiDrive, TaxiGPS,
+                      PlayerHands, FootReceiver, CockpitInteractable
+```
+
+`Assets/Editor/TaxiDevelopmentBridge.cs` procesa únicamente comandos locales predeterminados desde
+`Logs/TaxiCommand.txt` (`inspect`, `play`, `stop`, `save`, `refresh`, `test`, `city`, `wire`, `configure`,
+`build`, `verify`, `runtime-check`). No abre puertos ni ejecuta código arbitrario.
+
+## Desviaciones respecto a la especificación
+
+Documentadas por exigencia del propio documento (§1). Todas son deliberadas.
+
+1. **Versiones** — la especificación pide Unity 6000.0.66f2, OpenXR 1.16.1 y Meta XR SDK v83. El proyecto ya
+   funcionaba sobre Unity **6000.6.0f1**, OpenXR **1.18.0** y Meta XR SDK **205.0.0**. No se han degradado: hacerlo
+   habría roto una cadena XR que funciona.
+2. **Manzanas de 64 m** — la especificación pide 50 × 50 m. El kit de arte y el grafo comparten la rejilla de 64 m
+   (`CityGraph.BlockSize`), y las vías del mundo se dibujan en los múltiplos de 64 para coincidir con los nudos del
+   grafo, los carriles (±3 m) y el GPS. Cambiar la rejilla obligaría a rehacer el arte.
+3. **Paquetes de Meta** — se han retirado `com.meta.xr.sdk.all` (paraguas redundante: todas sus dependencias ya
+   estaban declaradas una a una) y `com.meta.xr.mrutilitykit`, que el proyecto no usa y que registraba errores en
+   cada arranque. La lista de SDK que pide la especificación se mantiene intacta.
+4. **Arte y voz de los 12 pasajeros** — los hitos 23 y 24 (arte final y audio final) no están hechos. Los pasajeros
+   usan los modelos low poly existentes con cara y voz **sintetizadas por procedimiento**; la radio son cinco pistas
+   sintetizadas, no música con licencia.
+5. **Suelo físico** — el kit de arte no trae una losa continua de calzada, así que la calzada, la acera y el
+   césped se generan por código y **cada sector aporta su propio colisionador de 64 × 64 m**. Es lo que hace
+   imposible caerse aunque el detalle de la manzana todavía no se haya montado.
+6. **GPS** — la especificación pide un mapa de 600 × 600 m. El mapa cubre 600 m en vertical y 800 m en horizontal,
+   porque la textura es 256 × 192 y se mantiene la escala uniforme.
+7. **Sentido único al 5 %** — la especificación pedía un 15 %. Medido sobre la rejilla nueva, con un 15 % el
+   selector de destino solo encontraba cuatro rutas alternativas en 16 de cada 24 intentos; con un 5 % encuentra
+   cuatro en 20, que es la fiabilidad que ya tenía el grafo anterior. La penalización por sentido contrario sigue
+   teniendo calles donde activarse.
+
+## Pendiente
+
+- Arte final y audio final (hitos 23 y 24).
+- Medición de rendimiento con visor real y ajuste del presupuesto de 72 Hz (hitos 25 y 28).
+- Compilación y despliegue del APK en Quest: la configuración Android (IL2CPP, ARM64, Vulkan único, minSdk 32,
+  targetSdk 34, `com.unsa.eltaxistaimprudente`) está aplicada, pero la compilación Android no se ha ejecutado aquí.

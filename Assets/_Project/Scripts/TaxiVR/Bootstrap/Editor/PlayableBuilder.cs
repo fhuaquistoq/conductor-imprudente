@@ -15,7 +15,7 @@ namespace TaxiVR.Playable.Editor
 {
     public static class PlayableBuilder
     {
-        public const string Scene = "Assets/_Project/Scenes/TaxiVR_Playable.unity";
+        public const string Scene = "Assets/Main.unity";
         public const string BuildPath = "Builds/Playable/TaxiVR.exe";
         const string DataFolder = "Assets/_Project/PlayableData";
         [MenuItem("TaxiVR/Playable/1 - Create or update playable scene")]
@@ -25,10 +25,10 @@ namespace TaxiVR.Playable.Editor
             Directory.CreateDirectory(DataFolder);
             var assets = AssetDatabase.LoadAssetAtPath<CityAssets>(DataFolder + "/CityAssets.asset");
             if (assets == null) { assets = ScriptableObject.CreateInstance<CityAssets>(); AssetDatabase.CreateAsset(assets, DataFolder + "/CityAssets.asset"); }
-            assets.Buildings = new[] { "Building_Small_1", "Building_Medium_2_001", "Building_Large_2" }.Select(n => Load("Assets/ThirdParty/DowntownCity/Models/" + n + ".fbx")).ToArray();
-            assets.Cars = new[] { "NormalCar1", "NormalCar2", "SUV" }.Select(n => Load("Assets/ThirdParty/Vehicles/Models/" + n + ".fbx")).ToArray();
-            assets.Taxi = Load("Assets/ThirdParty/Vehicles/Models/Taxi_Full.fbx");
-            foreach (var path in new[] { "Assets/ThirdParty/Vehicles/Models/Taxi_Full.fbx", "Assets/ThirdParty/Vehicles/Models/NormalCar1.fbx", "Assets/ThirdParty/Vehicles/Models/NormalCar2.fbx", "Assets/ThirdParty/Vehicles/Models/SUV.fbx", "Assets/ThirdParty/DowntownCity/Models/Building_Small_1.fbx", "Assets/ThirdParty/DowntownCity/Models/Building_Medium_2_001.fbx", "Assets/ThirdParty/DowntownCity/Models/Building_Large_2.fbx", "Assets/ThirdParty/UniversalCharacters/Models/Superhero_Male_FullBody.fbx" }) AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            assets.Buildings = new[] { "Building_Small_1", "Building_Medium_2_001", "Building_Large_2" }.Select(n => Load("Assets/_Project/Art/Buildings/Models/" + n + ".fbx")).ToArray();
+            assets.Cars = new[] { "NormalCar1", "NormalCar2", "SUV" }.Select(n => Load("Assets/_Project/Art/Vehicles/Models/" + n + ".fbx")).ToArray();
+            assets.Taxi = Load("Assets/_Project/Art/Vehicles/Models/Taxi_Full.fbx");
+            foreach (var path in new[] { "Assets/_Project/Art/Vehicles/Models/Taxi_Full.fbx", "Assets/_Project/Art/Vehicles/Models/NormalCar1.fbx", "Assets/_Project/Art/Vehicles/Models/NormalCar2.fbx", "Assets/_Project/Art/Vehicles/Models/SUV.fbx", "Assets/_Project/Art/Buildings/Models/Building_Small_1.fbx", "Assets/_Project/Art/Buildings/Models/Building_Medium_2_001.fbx", "Assets/_Project/Art/Buildings/Models/Building_Large_2.fbx", "Assets/_Project/Art/Characters/Models/Superhero_Male_FullBody.fbx" }) AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             assets.Asphalt = Material("Asfalto", new Color(.15f, .18f, .20f));
             assets.Pavement = Material("Vereda", new Color(.56f, .56f, .51f));
             assets.Dark = Material("Grafito", new Color(.045f, .06f, .07f));
@@ -54,7 +54,7 @@ namespace TaxiVR.Playable.Editor
                 facade.Apply(true); AssetDatabase.CreateAsset(facade, DataFolder + "/DistantFacade.asset");
             }
             assets.DistantBuilding.mainTexture = facade; EditorUtility.SetDirty(assets.DistantBuilding);
-            assets.UnlitShader = Shader.Find("Standard");
+            assets.UnlitShader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
             assets.Font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             EditorUtility.SetDirty(assets);
             // Keep the earlier bootstrap scene intact. This scene owns the first playable version.
@@ -119,36 +119,26 @@ namespace TaxiVR.Playable.Editor
         // Solo para la vista previa.
         static void BakeCity(CityAssets assets)
         {
-            var root = new GameObject("Ciudad");
-            var city = root.AddComponent<EndlessCity>();
-            city.Assets = assets;
+            var root = new GameObject("Ciudad editorial");
+            var catalog = assets.Catalog;
+            if (catalog == null || catalog.SectorTemplates == null) return;
             for (int x = -BakedRadius; x <= BakedRadius; x++)
                 for (int z = -BakedRadius; z <= BakedRadius; z++)
                 {
-                    var sector = new GameObject("Sector").AddComponent<CitySector>();
-                    sector.transform.SetParent(root.transform, false);
-                    sector.Build(assets, withLods: false);
-                    sector.Place(new Vector2Int(x, z), new Vector3(x * CityMath.Block, 0, z * CityMath.Block));
-                    Disconnect(sector.gameObject);
+                    var prefab = catalog.SectorTemplates[CityMath.TemplateIndex(new Vector2Int(x, z), catalog.SectorTemplates.Length)];
+                    if (prefab == null) continue;
+                    var instance = PrefabUtility.InstantiatePrefab(prefab, root.transform) as GameObject;
+                    instance.transform.localPosition = new Vector3(x * CityMath.Block, 0, z * CityMath.Block);
+                    instance.name = $"Sector {x},{z}";
                 }
-        }
-        // Las instancias de prefab creadas por codigo son una fuente conocida de referencias fragiles al
-        // serializar; se desconectan y quedan como contenido plano.
-        static void Disconnect(GameObject root)
-        {
-            var instances = root.GetComponentsInChildren<Transform>(true)
-                .Where(t => PrefabUtility.IsAnyPrefabInstanceRoot(t.gameObject))
-                .Select(t => t.gameObject)
-                .ToArray();
-            foreach (var instance in instances)
-                PrefabUtility.UnpackPrefabInstance(instance, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
         }
         static Material Material(string name, Color color)
         {
             string path = DataFolder + "/" + name + ".mat";
+            var lit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (material == null) { material = new Material(Shader.Find("Standard")); AssetDatabase.CreateAsset(material, path); }
-            else if (material.shader != Shader.Find("Standard")) material.shader = Shader.Find("Standard");
+            if (material == null) { material = new Material(lit); AssetDatabase.CreateAsset(material, path); }
+            else if (material.shader != lit) material.shader = lit;
             material.color = color; material.SetFloat("_Smoothness", .22f); material.enableInstancing = true; EditorUtility.SetDirty(material); return material;
         }
         [MenuItem("TaxiVR/Playable/2 - Verify configuration")]
@@ -214,7 +204,8 @@ namespace TaxiVR.Playable.Editor
         [MenuItem("TaxiVR/Playable/3 - Build Windows playable")]
         public static void Build()
         {
-            Configure();
+            // No se regenera la escena aqui: Main.unity es la escena de produccion, con su vista previa
+            // editorial y su camara colocadas a mano, y recrearla en cada compilacion la borraria.
             Verify(); Directory.CreateDirectory(Path.GetDirectoryName(BuildPath));
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { Scene }, target = BuildTarget.StandaloneWindows64, locationPathName = BuildPath, options = BuildOptions.Development });
             File.WriteAllText("Logs/TaxiBuildResult.txt", report.summary.result + "\nBytes: " + report.summary.totalSize + "\nErrors: " + report.summary.totalErrors + "\nWarnings: " + report.summary.totalWarnings);

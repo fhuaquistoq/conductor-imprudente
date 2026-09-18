@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR;
 using UnityEngine.XR.Management;
+using TaxiVR.Gameplay;
 
 namespace TaxiVR.Playable
 {
@@ -20,19 +21,22 @@ namespace TaxiVR.Playable
         public TaxiGPS GPS { get; private set; }
         public FootReceiver Feet { get; private set; }
         public SkidController Skid { get; private set; }
+        public GameDirector Director { get; private set; }
+        public CityTrafficSystem Traffic { get; private set; }
+        public PoliceSystem Police { get; private set; }
+        public InteriorControls Interior { get; private set; }
+        public CityGraph Graph { get; private set; }
         public string Status => Player.TrackingStatus;
-        AudioSource radio, engine, effects;
+        AudioSource engine, effects;
         AudioClip click;
-        AudioClip[] stations;
         TextMesh speedText, radioText;
-        float volume = .3f;
-        int station;
-        bool radioOn = true;
         Transform cabin;
         bool initializedXR;
         void Awake()
         {
             Instance = this;
+            var editorPreview = GameObject.Find("Editor City Preview");
+            if (editorPreview != null) editorPreview.SetActive(false);
             Application.targetFrameRate = 90; Application.runInBackground = true;
             QualitySettings.vSyncCount = 0; Time.fixedDeltaTime = 1f / 90;
             Physics.IgnoreLayerCollision(8, 9, true);
@@ -65,8 +69,10 @@ namespace TaxiVR.Playable
                 desktop = !initializedXR;
             }
             Player.Desktop = desktop;
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-verify") >= 0) gameObject.AddComponent<PlayableVerification>();
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-debug") >= 0 || Application.isEditor && ShowDebugInEditor) gameObject.AddComponent<DebugOverlay>();
+            var arguments = Environment.GetCommandLineArgs();
+            Director.SkipTrackerGate = Array.IndexOf(arguments, "-taxivr-verify") >= 0;
+            if (Array.IndexOf(arguments, "-taxivr-verify") >= 0) gameObject.AddComponent<PlayableVerification>();
+            if (Array.IndexOf(arguments, "-taxivr-debug") >= 0 || Application.isEditor && ShowDebugInEditor) gameObject.AddComponent<DebugOverlay>();
         }
         void BuildWorld()
         {
@@ -93,26 +99,46 @@ namespace TaxiVR.Playable
             Skid.RearRight = Find("Taxi_BackWheels.001") ?? Skid.RearLeft;
             var rig = new GameObject("Seated XR player"); rig.transform.SetParent(car.transform, false);
             Player = rig.AddComponent<PlayerHands>(); Player.Assets = Assets; Player.SeatEye = new Vector3(-.405f, .92f, -.2f);
-            Player.View = new GameObject("First person camera").AddComponent<Camera>(); Player.View.transform.SetParent(rig.transform, false);
-            Player.View.transform.localPosition = Player.SeatEye; Player.View.tag = "MainCamera";
+            Player.View = Camera.main;
+            if (Player.View == null) Player.View = new GameObject("First person camera").AddComponent<Camera>();
+            Player.View.name = "First person camera"; Player.View.transform.SetParent(rig.transform, false);
+            Player.View.transform.localPosition = Player.SeatEye; Player.View.transform.localRotation = Quaternion.identity; Player.View.tag = "MainCamera";
+            Player.View.enabled = true; Player.View.stereoTargetEye = StereoTargetEyeMask.Both; Player.View.targetDisplay = 0; Player.View.rect = new Rect(0, 0, 1, 1);
             Player.View.nearClipPlane = .025f; Player.View.farClipPlane = 185; Player.View.fieldOfView = 76;
-            Player.View.backgroundColor = RenderSettings.fogColor; Player.View.clearFlags = CameraClearFlags.SolidColor;
-            Player.View.gameObject.AddComponent<AudioListener>(); Drive.Player = Player;
+            Player.View.backgroundColor = RenderSettings.fogColor; Player.View.clearFlags = CameraClearFlags.SolidColor; Player.View.cullingMask = ~0;
+            if (Player.View.GetComponent<AudioListener>() == null) Player.View.gameObject.AddComponent<AudioListener>();
+            Drive.Player = Player;
             City = FindAnyObjectByType<EndlessCity>();
             if (City == null) City = new GameObject("Ciudad infinita").AddComponent<EndlessCity>();
             City.Assets = Assets; City.Taxi = car.transform;
             BuildCockpit(); BuildAudio();
-            for (int i = 0; i < 8; i++)
-            {
-                bool ns = i % 2 == 0; int sign = i % 4 < 2 ? 1 : -1;
-                var go = new GameObject("Trafico " + i); go.transform.SetParent(City.transform);
-                go.transform.position = ns ? new Vector3((i / 4) * 64 + sign * 3, 0, -90 + i * 28) : new Vector3(-90 + i * 27, 0, (i / 4) * 64 - sign * 3);
-                var model = Instantiate(Assets.Cars[i % Assets.Cars.Length], go.transform); model.transform.localPosition = Vector3.zero;
-                go.transform.rotation = Quaternion.LookRotation(ns ? Vector3.forward * sign : Vector3.right * sign);
-                var rb = go.AddComponent<Rigidbody>(); rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.Interpolate;
-                var collider = go.AddComponent<BoxCollider>(); collider.center = new Vector3(0, .55f, 0); collider.size = new Vector3(1.8f, 1.1f, 4.2f);
-                var traffic = go.AddComponent<CityTraffic>(); traffic.City = City; traffic.NorthSouth = ns; traffic.Sign = sign; traffic.CruiseSpeed = 5 + i * .3f;
-            }
+            BuildGameplay(car);
+        }
+        void BuildGameplay(GameObject car)
+        {
+            // Ciudad de rejilla: toda calle de la cuadricula existe y es de doble sentido salvo un cinco por
+            // ciento de sentido unico, que es lo que mantiene viva la penalizacion por ir en sentido contrario.
+            // El reparto se dejo en el cinco por ciento y no en el quince que pedia la especificacion original
+            // porque un sentido unico de mas recorta las rutas alternativas que el selector de destino exige:
+            // medido sobre la rejilla, con cinco por ciento se consiguen cuatro rutas viables en veinte de cada
+            // veinticuatro destinos, y con quince en dieciseis. Las manzanas rectangulares se comen su calle
+            // intermedia, y el grafo consulta esa misma decision para no ofrecer una calle que el mundo no dibuja.
+            Graph = new CityGraph(UnityEngine.Random.Range(1, 1 << 30), 1f, .05f, 0f, 0f) { Blocked = CityGrid.IsBlocked };
+            Traffic = new GameObject("Trafico").AddComponent<CityTrafficSystem>();
+            Traffic.Configure(City, Assets, car.transform, Graph);
+            Police = new GameObject("Policia").AddComponent<PoliceSystem>();
+            Police.transform.SetParent(City.transform, false);
+            Police.City = City; Police.Assets = Assets; Police.Drive = Drive; Police.Graph = Graph;
+            Director = gameObject.AddComponent<GameDirector>();
+            Director.Drive = Drive; Director.City = City; Director.GPS = GPS; Director.Feet = Feet;
+            Director.Player = Player; Director.Assets = Assets; Director.Graph = Graph;
+            Director.Police = Police;
+            Interior = gameObject.AddComponent<InteriorControls>();
+            Interior.Configure(Assets, cabin, Director);
+            Director.Interior = Interior;
+            var recovery = car.AddComponent<TaxiRecovery>(); recovery.Drive = Drive; recovery.Director = Director;
+            var collisions = car.AddComponent<CollisionReporter>(); collisions.Drive = Drive; collisions.Director = Director;
+            var recenter = gameObject.AddComponent<SeatedCalibration>(); recenter.Player = Player; recenter.Drive = Drive;
         }
         Transform Find(string name) => cabin.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == name);
         CockpitInteractable Bind(string name, CockpitKind kind, string caption, float radius = .07f)
@@ -139,15 +165,15 @@ namespace TaxiVR.Playable
         void BuildCockpit()
         {
             Drive.Wheel = Bind("PIVOT_VOLANTE", CockpitKind.Wheel, "Volante: agarrar y girar", .17f);
-            var gears = Bind("PIVOT_CAMBIOS_DR", CockpitKind.Gear, "Cambio D / R", .11f);
+            var gears = Bind("PIVOT_CAMBIOS_DR", CockpitKind.Gear, "Cambio F / O / R", .11f);
             gears.Value = 1;
-            gears.Changed = value => { if (Drive.ChangeDirection(value > 0 ? 1 : -1)) gears.Value = value; };
-            var knob = Bind("PIVOT_RADIO_-0.067", CockpitKind.Knob, "Volumen: agarrar y girar", .055f); knob.Value = volume;
-            knob.Changed = v => volume = v;
+            gears.Changed = value => { if (Drive.ChangeDirection(Mathf.RoundToInt(value))) gears.Value = value; };
+            var knob = Bind("PIVOT_RADIO_-0.067", CockpitKind.Knob, "Volumen: agarrar y girar", .055f);
+            knob.Changed = v => Interior.SetVolume(v);
             var tune = Bind("PIVOT_RADIO_0.137", CockpitKind.Knob, "Sintonizar emisora", .05f);
-            tune.Changed = v => SetStation(Mathf.Min(2, Mathf.FloorToInt(v * 3)));
-            Button("Radio power", new Vector3(-.043f, .6f, .445f), "RADIO", () => radioOn = !radioOn, Assets.Yellow);
-            Button("Station", new Vector3(.035f, .6f, .445f), "FM", () => SetStation((station + 1) % 3), Assets.Blue);
+            tune.Changed = v => Interior.SetStation(Mathf.Min(4, Mathf.FloorToInt(v * 5)));
+            Button("Radio power", new Vector3(-.043f, .6f, .445f), "RADIO", () => Interior.ToggleRadio(), Assets.Yellow);
+            Button("Station", new Vector3(.035f, .6f, .445f), "FM", () => Interior.NextStation(), Assets.Blue);
             Button("Cruise", new Vector3(-.185f, .737f, .487f), "CRUCERO", () => Drive.Cruise = !Drive.Cruise, Assets.Blue);
             Button("Brake", new Vector3(-.10f, .737f, .487f), "FRENAR", () => { Drive.Cruise = false; Drive.Body.linearVelocity = Vector3.zero; }, Assets.Red);
             var glass = Find("Taxi_L_FRONT_GLASS"); Vector3 originalGlass = glass.localPosition; bool open = false;
@@ -162,49 +188,24 @@ namespace TaxiVR.Playable
             screen.GetComponent<Renderer>().material = new Material(Assets.UnlitShader);
             GPS = gpsBase.AddComponent<TaxiGPS>(); GPS.City = City; GPS.Drive = Drive; GPS.Screen = screen.GetComponent<Renderer>();
             GPS.Readout = Shape.Label("GPS instruction", gpsBase.transform, new Vector3(0, .083f, -.02f), "DESTINO", .0024f, Color.white, Assets.Font);
-            Button("GPS on", new Vector3(-.066f, .704f, .415f), "GPS", () => GPS.Powered = !GPS.Powered, Assets.Blue);
-            Button("GPS route", new Vector3(.03f, .704f, .415f), "RUTA", () => GPS.NextDestination(), Assets.Yellow);
+            Button("GPS on", new Vector3(-.066f, .704f, .415f), "GPS", () => GPS.Power(!GPS.Powered), Assets.Blue);
+            Button("GPS route", new Vector3(.03f, .704f, .415f), "RECALCULAR", () => GPS.Replot(), Assets.Yellow);
             var gpsGrab = gpsBase.AddComponent<CockpitInteractable>(); gpsGrab.Kind = CockpitKind.Mirror; gpsGrab.Caption = "GPS: ajustar inclinacion"; gpsGrab.Radius = .1f; gpsGrab.Visual = gpsBase.transform;
             gpsBase.layer = 8; var gpsCollider = gpsBase.AddComponent<BoxCollider>(); gpsCollider.size = new Vector3(.25f, .178f, .04f); gpsCollider.isTrigger = true;
-            Mirror("PIVOT_ESPEJO_INTERIOR", new Vector3(0, 1.015f, .343f), new Vector2(.23f, .065f));
-            Mirror("PIVOT_RETROVISOR_ORIGINAL_L", new Vector3(-.81f, .76f, .79f), new Vector2(.11f, .073f));
-            Mirror("PIVOT_RETROVISOR_ORIGINAL_R", new Vector3(.81f, .76f, .79f), new Vector2(.11f, .073f));
-            Food("Hamburguesa", new Vector3(.23f, .49f, -.08f), true);
-            Food("Cafe", new Vector3(.09f, .52f, -.19f), false);
-            var note = Shape.Part("Ticket", Drive.transform, new Vector3(.4f, .5f, .05f), new Vector3(.16f, .22f, .003f), Assets.White);
-            note.transform.localRotation = Quaternion.Euler(65, -15, 0);
-            var paper = new GameObject("Hoja de instrucciones"); paper.transform.SetParent(Drive.transform, false); paper.transform.localPosition = note.transform.localPosition;
-            note.transform.SetParent(paper.transform, true);
-            var grab = paper.AddComponent<CockpitInteractable>(); grab.Kind = CockpitKind.Loose; grab.Caption = "Coger instrucciones"; grab.Radius = .13f; grab.Visual = paper.transform;
-            paper.layer = 8; var pc = paper.AddComponent<BoxCollider>(); pc.size = new Vector3(.18f, .15f, .15f);
-            var rb = paper.AddComponent<Rigidbody>(); rb.isKinematic = true; rb.mass = .02f;
-            var text = Shape.Label("Ticket text", paper.transform, new Vector3(0, .015f, -.035f), "TAXI VR\nRUTA LIBRE\n\nSIGUE EL GPS\nDETENTE EN AZUL\n\nBUEN VIAJE", .005f, Color.black, Assets.Font); text.transform.localRotation = Quaternion.Euler(65, -15, 0);
+            Mirror("PIVOT_ESPEJO_INTERIOR", new Vector3(0, 1.015f, .343f), new Vector2(.23f, .065f), true);
+            Mirror("PIVOT_RETROVISOR_ORIGINAL_L", new Vector3(-.81f, .76f, .79f), new Vector2(.11f, .073f), false);
+            Mirror("PIVOT_RETROVISOR_ORIGINAL_R", new Vector3(.81f, .76f, .79f), new Vector2(.11f, .073f), false);
             Shape.Part("Cabin tray collision", Drive.transform, new Vector3(.28f, .37f, .06f), new Vector3(.65f, .06f, .65f), Assets.Dark, collider:true).layer = 8;
         }
-        void Mirror(string pivot, Vector3 position, Vector2 size)
+        void Mirror(string pivot, Vector3 position, Vector2 size, bool detachable)
         {
             var interaction = Bind(pivot, CockpitKind.Mirror, "Retrovisor: agarrar y orientar", .1f);
             var quad = Shape.Part("Reflejo", Drive.transform, position, new Vector3(size.x, size.y, 1), Assets.Glass, PrimitiveType.Quad);
             quad.layer = 8; quad.transform.SetParent(interaction.Visual, true); quad.GetComponent<Renderer>().material = new Material(Assets.UnlitShader);
-            var mirror = quad.AddComponent<TaxiMirror>(); mirror.Vehicle = Drive.transform; mirror.Adjustment = interaction.Visual; mirror.Surface = quad.GetComponent<Renderer>();
-        }
-        void Food(string name, Vector3 position, bool burger)
-        {
-            var root = new GameObject(name); root.layer = 8; root.transform.SetParent(Drive.transform, false); root.transform.localPosition = position;
-            if (burger)
-            {
-                Shape.Part("Bread", root.transform, Vector3.zero, new Vector3(.115f, .065f, .115f), Assets.Facades[1], PrimitiveType.Sphere);
-                Shape.Part("Filling", root.transform, new Vector3(0, -.008f, 0), new Vector3(.12f, .016f, .12f), Assets.Red, PrimitiveType.Cylinder);
-                Shape.Part("Lettuce", root.transform, new Vector3(0, .008f, 0), new Vector3(.125f, .006f, .12f), Assets.Foliage, PrimitiveType.Cylinder);
-            }
-            else
-            {
-                Shape.Part("Cup", root.transform, Vector3.zero, new Vector3(.07f, .055f, .07f), Assets.White, PrimitiveType.Cylinder);
-                Shape.Part("Lid", root.transform, new Vector3(0, .055f, 0), new Vector3(.08f, .006f, .08f), Assets.Dark, PrimitiveType.Cylinder);
-            }
-            var col = root.AddComponent<SphereCollider>(); col.radius = .055f;
-            var rb = root.AddComponent<Rigidbody>(); rb.mass = .15f; rb.isKinematic = true; rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
-            var grab = root.AddComponent<CockpitInteractable>(); grab.Kind = CockpitKind.Loose; grab.Caption = "Coger " + name; grab.Radius = .1f; grab.Visual = root.transform;
+            var mirror = quad.AddComponent<TaxiMirror>();
+            mirror.Vehicle = Drive.transform; mirror.Adjustment = interaction.Visual;
+            mirror.Surface = quad.GetComponent<Renderer>();
+            mirror.Detachable = detachable; mirror.Interaction = interaction;
         }
         AudioSource Source(string name)
         {
@@ -213,8 +214,6 @@ namespace TaxiVR.Playable
         }
         void BuildAudio()
         {
-            stations = new[] { Sound("Costa FM", 8, 110, 0), Sound("Noche Jazz", 8, 146.83f, 1), Sound("Ruta Electronica", 8, 130.81f, 2) };
-            radio = Source("Radio"); radio.clip = stations[0]; radio.loop = true; radio.Play();
             engine = Source("Motor"); engine.clip = Sound("Engine", 2, 45, 3); engine.loop = true; engine.volume = .035f; engine.Play();
             effects = Source("Click"); click = Sound("Click", .055f, 720, 4);
         }
@@ -230,13 +229,12 @@ namespace TaxiVR.Playable
             }
             var clip = AudioClip.Create(name, count, 1, 22050, false); clip.SetData(data, 0); return clip;
         }
-        void SetStation(int value) { station = value; if (radio != null) { radio.clip = stations[station]; radio.Play(); } }
         public void Click() { if (effects != null && click != null) effects.PlayOneShot(click, .6f); }
         void Update()
         {
-            if (radio != null) { radio.volume = radioOn ? volume * .4f : 0; engine.pitch = .8f + Mathf.Abs(Drive.Speed) * .065f + (Skid == null ? 0 : Skid.Intensity * .5f); }
-            speedText.text = $"{Mathf.Abs(Drive.Speed) * 3.6f:00} km/h  {(Drive.Direction > 0 ? "D" : "R")}";
-            radioText.text = radioOn ? $"{new[] { "COSTA FM", "NOCHE JAZZ", "RUTA FM" }[station]}  {volume * 100:0}%" : "RADIO OFF";
+            if (engine != null) engine.pitch = .8f + Mathf.Abs(Drive.Speed) * .065f + (Skid == null ? 0 : Skid.Intensity * .5f);
+            speedText.text = $"{Mathf.Abs(Drive.Speed) * 3.6f:00} km/h  {(Drive.Direction > 0 ? "F" : Drive.Direction < 0 ? "R" : "O")}";
+            radioText.text = Interior == null || !Interior.RadioOn ? "RADIO OFF" : $"EMISORA {Interior.Station + 1}  {Interior.Volume * 100:0}%";
         }
         void OnDestroy()
         {

@@ -17,6 +17,7 @@ namespace TaxiVR.Playable
         public bool HadHeadTracking { get; private set; }
         public float LeftTrigger { get; private set; }
         public float RightTrigger { get; private set; }
+        public bool Speaking { get; private set; }
         public string TrackingStatus { get; private set; } = "TECLADO + RATON";
         public Vector3 SeatEye = new(-.36f, 1.06f, -.28f);
         readonly List<XRHandSubsystem> subsystems = new();
@@ -38,6 +39,8 @@ namespace TaxiVR.Playable
             public CockpitInteractable Touching;
             public bool WasGrip;
             public bool Tracked;
+            public bool Open;
+            public Vector3 Point;
         }
         void Start()
         {
@@ -61,10 +64,11 @@ namespace TaxiVR.Playable
                 hand.Palm.gameObject.SetActive(false);
             }
         }
-        void OnEnable() { Application.onBeforeRender += TrackHead; }
+        void OnEnable() { Application.onBeforeRender += TrackHead; StartVoice(); }
         void OnDisable()
         {
             Application.onBeforeRender -= TrackHead;
+            StopVoice();
             for (int i = 0; i < 2; i++) Release(i);
             desktopHeld?.Release(2); desktopHeld = null;
             LeftTrigger = RightTrigger = 0;
@@ -75,6 +79,7 @@ namespace TaxiVR.Playable
         }
         void Update()
         {
+            UpdateVoice();
             if (Keyboard.current?.hKey.wasPressedThisFrame == true) calibrated = false;
             if (Desktop) { DesktopInput(); return; }
             TrackHead();
@@ -108,6 +113,7 @@ namespace TaxiVR.Playable
             bool real = subsystem != null && xrhand.isTracked;
             bool controller = device.TryGetFeatureValue(CommonUsages.isTracked, out bool tracked) && tracked;
             state.Tracked = real || controller;
+            state.Open = false;
             state.Palm.gameObject.SetActive(controller && !real);
             for (int j = 0; j < state.Joints.Length; j++) { state.Joints[j].gameObject.SetActive(real); state.Bones[j].gameObject.SetActive(real); }
             if (!state.Tracked || !HeadTracked) { Release(index); if (index == 0) LeftTrigger = 0; else RightTrigger = 0; return false; }
@@ -145,6 +151,8 @@ namespace TaxiVR.Playable
             }
             if (index == 0) LeftTrigger = trigger; else RightTrigger = trigger;
             bool gripping = grip > .65f;
+            state.Point = point;
+            state.Open = !gripping;
             var touch = Closest(tip, true);
             if (touch != null && touch != state.Touching) { touch.Press(); Pulse(index == 0); }
             state.Touching = touch;
@@ -177,6 +185,70 @@ namespace TaxiVR.Playable
         {
             var device = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(left ? XRNode.LeftHand : XRNode.RightHand);
             if (device.TryGetHapticCapabilities(out var capabilities) && capabilities.supportsImpulse) device.SendHapticImpulse(0, .18f, .045f);
+        }
+        public bool TryGetHandPoint(int index, out Vector3 point)
+        {
+            point = index >= 0 && index < hands.Length ? hands[index].Point : Vector3.zero;
+            return index >= 0 && index < hands.Length && hands[index].Tracked;
+        }
+        public bool HandOpen(int index) => index >= 0 && index < hands.Length && hands[index].Tracked && hands[index].Open;
+        public bool HandGripping(int index) => index >= 0 && index < hands.Length && hands[index].Tracked && !hands[index].Open;
+        public void Recenter() => calibrated = false;
+
+        // Actividad de voz local: solo se mide el nivel del microfono, sin reconocimiento ni grabacion.
+        // El pasajero conversador premia que se le hable; el silencioso premia el silencio.
+        AudioClip microphoneClip;
+        readonly float[] voiceBuffer = new float[512];
+        float voiceLevel;
+        float voiceSilence = 1f;
+
+        const float VoiceThreshold = .012f;
+        const float VoiceHoldSeconds = .25f;
+
+        void StartVoice()
+        {
+            if (microphoneClip != null) return;
+            try
+            {
+                if (Microphone.devices == null || Microphone.devices.Length == 0) return;
+                microphoneClip = Microphone.Start(null, true, 1, 16000);
+            }
+            catch (System.Exception error)
+            {
+                microphoneClip = null;
+                Debug.LogWarning("Sin microfono para detectar la voz: " + error.Message);
+            }
+        }
+
+        void StopVoice()
+        {
+            if (microphoneClip == null) return;
+            try { if (Microphone.IsRecording(null)) Microphone.End(null); }
+            catch (System.Exception) { }
+            microphoneClip = null;
+            Speaking = false;
+        }
+
+        void UpdateVoice()
+        {
+            // En escritorio, o donde no hay microfono, la tecla V sostiene la conversacion.
+            if (Keyboard.current?.vKey.isPressed == true) { Speaking = true; voiceLevel = 1f; voiceSilence = 0f; return; }
+            if (microphoneClip == null)
+            {
+                Speaking = false;
+                return;
+            }
+            int start = Microphone.GetPosition(null) - voiceBuffer.Length;
+            if (start < 0 || !microphoneClip.GetData(voiceBuffer, start))
+            {
+                Speaking = voiceSilence < VoiceHoldSeconds;
+                return;
+            }
+            float sum = 0f;
+            for (int i = 0; i < voiceBuffer.Length; i++) sum += voiceBuffer[i] * voiceBuffer[i];
+            voiceLevel = Mathf.Lerp(voiceLevel, Mathf.Sqrt(sum / voiceBuffer.Length), .3f);
+            voiceSilence = voiceLevel > VoiceThreshold ? 0f : voiceSilence + Time.deltaTime;
+            Speaking = voiceSilence < VoiceHoldSeconds;
         }
         void DesktopInput()
         {

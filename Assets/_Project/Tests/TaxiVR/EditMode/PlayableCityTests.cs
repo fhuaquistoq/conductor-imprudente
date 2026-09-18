@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
+using TaxiVR.City;
 using TaxiVR.Playable;
 
 namespace TaxiVR.Tests.EditMode
@@ -27,6 +28,23 @@ namespace TaxiVR.Tests.EditMode
             Assert.AreEqual(new Vector2Int(3, -1), route[route.Count - 1]);
             for (int i = 1; i < route.Count; i++)
                 Assert.AreEqual(1, Mathf.Abs(route[i].x - route[i-1].x) + Mathf.Abs(route[i].y - route[i-1].y));
+        }
+        [Test] public void TemplateIndexIsStableAndBounded()
+        {
+            for (int x = -20; x <= 20; x++) for (int z = -20; z <= 20; z++)
+            {
+                var key = new Vector2Int(x, z);
+                Assert.AreEqual(CityMath.TemplateIndex(key, 6), CityMath.TemplateIndex(key, 6));
+                Assert.That(CityMath.TemplateIndex(key, 6), Is.InRange(0, 5));
+            }
+        }
+        [Test] public void TemplateRotationHonorsAllowedOrientations()
+        {
+            var go = new GameObject("Template test");
+            var template = go.AddComponent<CitySectorTemplate>();
+            template.AllowedRotations = new[] { false, true, false, false };
+            Assert.AreEqual(90, CityMath.TemplateRotation(new Vector2Int(4, -8), template));
+            Object.DestroyImmediate(go);
         }
     }
 }

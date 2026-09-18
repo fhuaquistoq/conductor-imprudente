@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e523bc198fec15f49a80f5a3227068e4, type: 3}
   m_Name: CityAssets
   m_EditorClassIdentifier: TaxiVR.Runtime::TaxiVR.Playable.CityAssets
+  Catalog: {fileID: 11400000, guid: 85fc9a941bb28054c84e0da35e731347, type: 2}
   Buildings:
   - {fileID: 919132149155446097, guid: abe72a2746ea9574a9ea3af2c192950d, type: 3}
   - {fileID: 919132149155446097, guid: 0e7f91fd4cb7f2a48a55bee0e1f33e09, type: 3}
@@ -21,6 +22,9 @@ MonoBehaviour:
   - {fileID: 919132149155446097, guid: a6479ad903257584d821e1b7c28a282a, type: 3}
   - {fileID: 919132149155446097, guid: a167b101fa9621d44956d5141d6d91ca, type: 3}
   Taxi: {fileID: 919132149155446097, guid: 0751b6b380e6fb04da3b5f5f59b4fc6f, type: 3}
+  PoliceCar: {fileID: 919132149155446097, guid: 1f699763f6df13d4dafefd82dca21a53, type: 3}
+  PassengerModel: {fileID: 919132149155446097, guid: 889bc8c404a840644a73c49a420866d2, type: 3}
+  PedestrianModel: {fileID: 919132149155446097, guid: 70707bbcc4a712240ac4cfe903c38725, type: 3}
   Asphalt: {fileID: 2100000, guid: 71591613957c2ab4da3583ef737cf1b1, type: 2}
   Pavement: {fileID: 2100000, guid: 48021b62c53dffe43867c7915fd37f7d, type: 2}
   Dark: {fileID: 2100000, guid: 077164b6de2f1224aaccbe29a7f7853e, type: 2}
@@ -38,5 +42,5 @@ MonoBehaviour:
   - {fileID: 2100000, guid: f75db5595e2f1c74cb30b362f9b1a8ac, type: 2}
   - {fileID: 2100000, guid: f6d9a1d0881a0a0499a4b91f48de7ecf, type: 2}
   DistantBuilding: {fileID: 2100000, guid: a3c3996327337c54ea806b2eef1d5d6d, type: 2}
-  UnlitShader: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
+  UnlitShader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
   Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}

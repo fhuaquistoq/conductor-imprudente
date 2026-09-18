@@ -7,11 +7,11 @@ using UnityEngine;
 // single built-in shader. Lighting is supplied by the scene and custom emissive lamps.
 public sealed class TaxiFbxMaterialPostprocessor : AssetPostprocessor
 {
-    static readonly string[] Roots = { "/ThirdParty/DowntownCity/", "/ThirdParty/Vehicles/", "/ThirdParty/UniversalCharacters/" };
+    static readonly string[] Roots = { "/Art/Buildings/", "/Art/Vehicles/", "/Art/Characters/" };
     void OnPostprocessMaterial(Material material)
     {
         if (!assetPath.EndsWith(".fbx") || !Roots.Any(root => assetPath.Replace('\\','/').Contains(root))) return;
-        var shader = Shader.Find("Standard");
+        var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
         if (shader == null) return;
         Color color = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
         material.shader = shader;

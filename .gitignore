@@ -55,3 +55,19 @@ __pycache__/
 /.codex/
 /.commandcode/
 /.pi/
+# Local Pi runtime state
+.atl/
+# Tambien dentro de Assets (p. ej. Assets/.commandcode)
+.commandcode/
+
+# Generados por Unity / IDE (se regeneran solos)
+*.csproj
+*.slnx
+/Verification/*.png
+
+# Estado local del FootTracker
+/FootTracker/.pytest_cache/
+
+# Estado de herramientas y secretos locales
+/Assets/\#Meta/
+/Assets/Resources/DevAgentSettings.asset

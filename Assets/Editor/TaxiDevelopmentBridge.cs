@@ -41,6 +41,15 @@ public static class TaxiDevelopmentBridge
                 if (!EditorApplication.isPlaying || root == null) throw new InvalidOperationException("Playable scene must be running.");
                 root.AddComponent(type);
             }
+            else if (command == "city")
+            {
+                if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
+                TaxiVR.City.Editor.CityEditorBuilder.Build();
+            }
+            else if (command == "wire")
+            {
+                TaxiVR.Bootstrap.Editor.TaxiAssetWiring.Wire();
+            }
             else if (command == "configure" || command == "build" || command == "verify")
             {
                 if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
@@ -70,9 +79,9 @@ public static class TaxiDevelopmentBridge
         foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
             text.AppendLine("ROOT " + root.name + " " + root.transform.position);
         foreach (var path in new[] {
-            "Assets/ThirdParty/Vehicles/Models/Taxi_Full.fbx", "Assets/ThirdParty/Vehicles/Models/NormalCar1.fbx",
-            "Assets/ThirdParty/DowntownCity/Models/Building_Small_1.fbx", "Assets/ThirdParty/DowntownCity/Models/Building_Medium_2_001.fbx",
-            "Assets/ThirdParty/DowntownCity/Models/Building_Large_2.fbx", "Assets/ThirdParty/UniversalCharacters/Models/Superhero_Male_FullBody.fbx" })
+            "Assets/_Project/Art/Vehicles/Models/Taxi_Full.fbx", "Assets/_Project/Art/Vehicles/Models/NormalCar1.fbx",
+            "Assets/_Project/Art/Buildings/Models/Building_Small_1.fbx", "Assets/_Project/Art/Buildings/Models/Building_Medium_2_001.fbx",
+            "Assets/_Project/Art/Buildings/Models/Building_Large_2.fbx", "Assets/_Project/Art/Characters/Models/Superhero_Male_FullBody.fbx" })
         {
             var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (asset == null) continue;
@@ -84,8 +93,55 @@ public static class TaxiDevelopmentBridge
             foreach (var r in obj.GetComponentsInChildren<Renderer>()) text.AppendLine("  MATERIALS " + string.Join(",", r.sharedMaterials.Select(m => m == null ? "null" : m.name + ":" + m.shader.name)));
             UnityEngine.Object.DestroyImmediate(obj);
         }
-        var clips = AssetDatabase.LoadAllAssetsAtPath("Assets/ThirdParty/UniversalAnimations/Animations/UAL2_Standard.fbx").OfType<AnimationClip>();
+        var clips = AssetDatabase.LoadAllAssetsAtPath("Assets/_Project/Art/Animations/Animations/UAL2_Standard.fbx").OfType<AnimationClip>();
         foreach (var clip in clips) text.AppendLine("CLIP " + clip.name + " " + clip.length);
+
+        // Ciudad: medidas reales de cada modulo del kit. La rejilla de 64 m y el tamano de parcela se
+        // derivan de aqui, no de suposiciones sobre el kit.
+        var moduleGuids = AssetDatabase.IsValidFolder("Assets/_Project/City/Prefabs/Modules")
+            ? AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/_Project/City/Prefabs/Modules" }) : new string[0];
+        foreach (var guid in moduleGuids)
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) continue;
+            var instance = UnityEngine.Object.Instantiate(prefab);
+            text.AppendLine("KIT " + Path.GetFileNameWithoutExtension(path) + " BOUNDS " + RenderBounds(instance));
+            UnityEngine.Object.DestroyImmediate(instance);
+        }
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/_Project/Art/Trees/Models", "Assets/_Project/Art/Props" }))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (model == null) continue;
+            var instance = UnityEngine.Object.Instantiate(model);
+            text.AppendLine("ART " + Path.GetFileNameWithoutExtension(path) + " BOUNDS " + RenderBounds(instance) +
+                " MATS " + string.Join(",", instance.GetComponentsInChildren<Renderer>().SelectMany(r => r.sharedMaterials).Distinct().Select(m => m == null ? "null" : m.name)));
+            UnityEngine.Object.DestroyImmediate(instance);
+        }
+        var characterClips = AssetDatabase.LoadAllAssetsAtPath("Assets/_Project/Art/Animations/Animations/UAL2_Standard.fbx").OfType<AnimationClip>()
+            .Select(c => c.name).Distinct().OrderBy(n => n).ToArray();
+        text.AppendLine("ANIM CLIPS " + string.Join(" | ", characterClips));
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/_Project/Art/Characters", "Assets/_Project/Art/Props", "Assets/_Project/Art/Food", "Assets/_Project/Art/Animals" }))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (model == null) continue;
+            var skin = model.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            var source = AssetImporter.GetAtPath(path) as ModelImporter;
+            text.AppendLine("CHAR " + path + " skinned=" + (skin != null) + " bones=" + model.GetComponentsInChildren<Transform>(true).Length +
+                " rig=" + (source == null ? "?" : source.animationType.ToString()) + " root=" + (skin == null ? "-" : skin.rootBone.name) +
+                " MATS " + string.Join(",", model.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Distinct().Select(m => m == null ? "null" : m.name)));
+        }
         File.WriteAllText("Logs/TaxiAssetInspection.txt", text.ToString());
+    }
+
+    static Bounds RenderBounds(GameObject root)
+    {
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0) return new Bounds(Vector3.zero, Vector3.zero);
+        var bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+        return bounds;
     }
 }

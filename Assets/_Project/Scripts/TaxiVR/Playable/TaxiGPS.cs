@@ -1,117 +1,278 @@
 using System.Collections.Generic;
 using UnityEngine;
+using TaxiVR.Gameplay;
 
 namespace TaxiVR.Playable
 {
+    /// <summary>Navegador diegetico. Se enciende solo cuando hay pasajero, dibuja desde <see cref="CityGraph"/>
+    /// y solo recalcula la ruta cuando el taxi se aleja de ella (la especificacion pide un segundo de
+    /// desvio), no en cada frame.</summary>
     public sealed class TaxiGPS : MonoBehaviour
     {
+        public const float MapMetres = 600f;
+        public const float OffRouteMetres = 10f;
+        public const float OffRouteSeconds = 1f;
+
         public EndlessCity City;
         public TaxiDrive Drive;
+        public CityGraph Graph;
         public Renderer Screen;
         public TextMesh Readout;
-        public Vector2Int Destination = new(1, 2);
-        public int Deliveries { get; private set; }
-        public bool Powered = true;
+
+        public bool Powered;
+        public Vector2Int Destination { get; private set; }
         public List<Vector2Int> Path { get; private set; } = new();
+
+        public float Distance => Vector3.Distance(City.AbsolutePosition, new Vector3(Destination.x * CityGraph.BlockSize + 3, 0, Destination.y * CityGraph.BlockSize + 14));
+
+        public bool Arrived => Path.Count > 0 && Distance < 8f;
+
+        const int Width = 256;
+        const int Height = 192;
+        static readonly float PixelsPerMetre = Height / MapMetres;
+
         Texture2D map;
         Color32[] pixels;
-        float nextUpdate, arrivalTime;
         Transform marker;
-        public float Distance => Vector3.Distance(City.AbsolutePosition, new Vector3(Destination.x * 64 + 3, 0, Destination.y * 64 + 14));
+        float offRouteTime;
+        Vector2Int lastNode = new(int.MinValue, int.MinValue);
+        bool routeDirty = true;
+
+        public Vector2Int CurrentNode
+        {
+            get
+            {
+                var position = City.AbsolutePosition;
+                return new Vector2Int(Mathf.RoundToInt(position.x / CityGraph.BlockSize), Mathf.RoundToInt(position.z / CityGraph.BlockSize));
+            }
+        }
+
         void Start()
         {
-            map = new Texture2D(256, 192, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, name = "Live GPS map" };
-            pixels = new Color32[256 * 192]; Screen.material.mainTexture = map;
-            marker = Shape.Part("Destino - zona de parada", City.transform, Vector3.zero, new Vector3(4, .025f, 9), City.Assets.Blue).transform;
+            map = new Texture2D(Width, Height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, name = "Mapa GPS" };
+            pixels = new Color32[Width * Height];
+            if (Screen != null) Screen.material.mainTexture = map;
+            marker = Shape.Part("Destino - zona de parada", City.transform, Vector3.zero, new Vector3(5, .03f, 10), City.Assets.Yellow).transform;
+            Shape.Part("Poste del destino", City.transform, Vector3.zero, new Vector3(.3f, 4f, .3f), City.Assets.Yellow).transform.SetParent(marker, true);
         }
-        public void NextDestination()
+
+        /// <summary>Fija un destino nuevo y traza la ruta desde el grafo.</summary>
+        public void SetDestination(Vector2Int destination)
         {
-            var pos = City.AbsolutePosition;
-            var node = new Vector2Int(Mathf.RoundToInt(pos.x / 64), Mathf.RoundToInt(pos.z / 64));
-            int hash = CityMath.Hash(Deliveries + 3, Destination.x + Destination.y);
-            Destination = node + new Vector2Int(hash % 3 - 1, 2 + hash % 3);
-            Powered = true; nextUpdate = 0;
+            Destination = destination;
+            routeDirty = true;
         }
+
+        public void Power(bool on) => Powered = on;
+
+        public void Replot() => routeDirty = true;
+
+        /// <summary>Distancia del taxi a la polilinea de la ruta. Decide el recalculado.</summary>
+        float DistanceToRoute(Vector3 position)
+        {
+            if (Path.Count == 0) return float.MaxValue;
+            float best = float.MaxValue;
+            var point = new Vector2(position.x, position.z);
+            for (int i = 0; i < Path.Count; i++)
+            {
+                var node = new Vector2(Path[i].x * CityGraph.BlockSize, Path[i].y * CityGraph.BlockSize);
+                if (i < Path.Count - 1)
+                {
+                    var next = new Vector2(Path[i + 1].x * CityGraph.BlockSize, Path[i + 1].y * CityGraph.BlockSize);
+                    best = Mathf.Min(best, DistanceToSegment(point, node, next));
+                }
+                else best = Mathf.Min(best, Vector2.Distance(point, node));
+            }
+            return best;
+        }
+
+        static float DistanceToSegment(Vector2 point, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            float length = ab.sqrMagnitude;
+            if (length < .0001f) return Vector2.Distance(point, a);
+            float t = Mathf.Clamp01(Vector2.Dot(point - a, ab) / length);
+            return Vector2.Distance(point, a + ab * t);
+        }
+
         void Update()
         {
-            if (marker == null) return;
-            marker.position = City.LocalPosition(Destination) + new Vector3(3, .035f, 14);
-            if (Distance < 6 && Mathf.Abs(Drive.Speed) < .6f)
+            if (marker != null) marker.position = City.LocalPosition(Destination) + new Vector3(3, .04f, 14);
+
+            if (Graph == null) return;
+            if (!Powered) { if (Readout != null) Readout.text = "GPS APAGADO"; if (Screen != null) Screen.enabled = false; return; }
+            if (Screen != null) Screen.enabled = true;
+
+            var node = CurrentNode;
+            if (node != lastNode) { lastNode = node; routeDirty = true; }
+
+            if (Path.Count > 0 && Drive != null)
             {
-                arrivalTime += Time.deltaTime;
-                if (arrivalTime > 2) { Deliveries++; arrivalTime = 0; NextDestination(); PlayableRoot.Instance.Click(); }
+                float off = DistanceToRoute(Drive.Body.position);
+                offRouteTime = off > OffRouteMetres ? offRouteTime + Time.deltaTime : 0f;
+                if (offRouteTime > OffRouteSeconds) { offRouteTime = 0f; routeDirty = true; }
             }
-            else arrivalTime = 0;
-            if (Time.time < nextUpdate) return;
-            nextUpdate = Time.time + .25f;
-            if (!Powered) { Readout.text = "GPS APAGADO"; Screen.enabled = false; return; }
-            Screen.enabled = true;
-            var position = City.AbsolutePosition;
-            var current = new Vector2Int(Mathf.RoundToInt(position.x / 64), Mathf.RoundToInt(position.z / 64));
-            Path = CityMath.Route(current, Destination);
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(16, 32, 40, 255);
-            Vector2Int Map(Vector3 world) => new(Mathf.RoundToInt(128 + (world.x - position.x) * .65f), Mathf.RoundToInt(70 + (world.z - position.z) * .65f));
-            for (int i = -5; i <= 5; i++)
+
+            if (routeDirty)
             {
-                int x = Map(new Vector3((current.x + i) * 64, 0, 0)).x;
-                int y = Map(new Vector3(0, 0, (current.y + i) * 64)).y;
-                Line(x, 0, x, 191, new Color32(58, 77, 81, 255), 3); Line(0, y, 255, y, new Color32(58, 77, 81, 255), 3);
+                routeDirty = false;
+                Path = Graph.Shortest(node, Destination);
             }
-            for (int i = 1; i < Path.Count; i++)
-            {
-                var a = Map(new Vector3(Path[i-1].x * 64, 0, Path[i-1].y * 64)); var b = Map(new Vector3(Path[i].x * 64, 0, Path[i].y * 64));
-                Line(a.x, a.y, b.x, b.y, new Color32(45, 191, 255, 255), 2);
-            }
-            var end = Map(new Vector3(Destination.x * 64 + 3, 0, Destination.y * 64 + 14));
-            Dot(Mathf.Clamp(end.x, 6, 249), Mathf.Clamp(end.y, 6, 185), 5, new Color32(255, 198, 69, 255));
-            Dot(128, 70, 4, new Color32(255, 255, 255, 255));
-            var dir = Drive.transform.forward; Line(128, 70, 128 + (int)(dir.x * 13), 70 + (int)(dir.z * 13), new Color32(255, 255, 255, 255), 1);
-            map.SetPixels32(pixels); map.Apply(false);
-            Readout.text = Distance < 6 ? "DETENTE 2 s PARA ENTREGAR" : $"DESTINO {Distance:0} m  |  ENTREGAS {Deliveries}";
+
+            Paint(node);
         }
-        void Dot(int x, int y, int radius, Color32 color)
+
+        void Paint(Vector2Int node)
         {
-            for (int a = -radius; a <= radius; a++) for (int b = -radius; b <= radius; b++)
-                if (x+a >= 0 && x+a < 256 && y+b >= 0 && y+b < 192) pixels[(y+b)*256+x+a] = color;
+            var here = new Vector2(node.x * CityGraph.BlockSize, node.y * CityGraph.BlockSize);
+            var background = new Color32(16, 32, 40, 255);
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = background;
+
+            int span = Mathf.CeilToInt(MapMetres * .5f / CityGraph.BlockSize) + 1;
+            for (int x = -span; x <= span; x++)
+                for (int z = -span; z <= span; z++)
+                {
+                    var a = new Vector2Int(node.x + x, node.y + z);
+                    DrawRoad(a, a + Vector2Int.right, here);
+                    DrawRoad(a, a + Vector2Int.up, here);
+                }
+
+            for (int i = 1; i < Path.Count; i++) Line(Map(Path[i - 1], here), Map(Path[i], here), new Color32(45, 191, 255, 255), 2);
+            Dot(Map(Destination, here), 5, new Color32(255, 198, 69, 255));
+
+            var forward = Drive == null ? Vector3.forward : Drive.transform.forward;
+            var centre = new Vector2Int(Width / 2, Height / 2);
+            Line(centre, centre + new Vector2Int(Mathf.RoundToInt(forward.x * 12), Mathf.RoundToInt(forward.z * 12)), new Color32(255, 255, 255, 255), 3);
+            Dot(centre, 3, new Color32(255, 255, 255, 255));
+
+            map.SetPixels32(pixels);
+            map.Apply(false);
+            if (Readout != null)
+                Readout.text = Arrived ? "DETENTE 2 s PARA ENTREGAR" : $"DESTINO {Distance:0} m";
         }
-        void Line(int x0, int y0, int x1, int y1, Color32 color, int width)
+
+        void DrawRoad(Vector2Int a, Vector2Int b, Vector2 here)
         {
-            int steps = Mathf.Min(2048, Mathf.Max(Mathf.Abs(x1-x0), Mathf.Abs(y1-y0)));
-            for (int i = 0; i <= steps; i++) { float t = steps == 0 ? 0 : (float)i / steps; Dot(Mathf.RoundToInt(Mathf.Lerp(x0,x1,t)), Mathf.RoundToInt(Mathf.Lerp(y0,y1,t)), width, color); }
+            if (Graph == null || !Graph.Exists(a, b)) return;
+            var edge = Graph.Describe(a, b);
+            if (edge.Direction == RoadDirection.Closed) { Line(Map(a, here), Map(b, here), new Color32(122, 26, 26, 255), 2); return; }
+            float traffic = Graph.Traffic(a, b);
+            var colour = traffic >= .65f ? new Color32(214, 69, 58, 255) : new Color32(58, 77, 81, 255);
+            Line(Map(a, here), Map(b, here), colour, edge.Kind == RoadKind.Alley ? 1 : 2);
         }
-        void OnDestroy() { if (map != null) Destroy(map); if (marker != null) Destroy(marker.gameObject); }
+
+        Vector2Int Map(Vector2Int node, Vector2 here)
+        {
+            float dx = (node.x * CityGraph.BlockSize - here.x) * PixelsPerMetre;
+            float dz = (node.y * CityGraph.BlockSize - here.y) * PixelsPerMetre;
+            return new Vector2Int(Mathf.Clamp(Mathf.RoundToInt(Width * .5f + dx), 2, Width - 3), Mathf.Clamp(Mathf.RoundToInt(Height * .5f + dz), 2, Height - 3));
+        }
+
+        void Line(Vector2Int a, Vector2Int b, Color32 colour, int width)
+        {
+            int steps = Mathf.Min(4096, Mathf.Max(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y)));
+            for (int i = 0; i <= steps; i++)
+            {
+                float t = steps == 0 ? 0f : (float)i / steps;
+                Dot(new Vector2Int(Mathf.RoundToInt(Mathf.Lerp(a.x, b.x, t)), Mathf.RoundToInt(Mathf.Lerp(a.y, b.y, t))), width, colour);
+            }
+        }
+
+        void Dot(Vector2Int point, int radius, Color32 colour)
+        {
+            for (int a = -radius; a <= radius; a++)
+                for (int b = -radius; b <= radius; b++)
+                {
+                    int x = point.x + a, y = point.y + b;
+                    if (x < 0 || x >= Width || y < 0 || y >= Height) continue;
+                    pixels[y * Width + x] = colour;
+                }
+        }
+
+        void OnDestroy()
+        {
+            if (map != null) Destroy(map);
+            if (marker != null) Destroy(marker.gameObject);
+        }
     }
+
+    /// <summary>Retrovisor ajustable. Solo el interior puede desprenderse, y solo si se tira de el con
+    /// decision: 18 cm del anclaje durante 250 ms.</summary>
     public sealed class TaxiMirror : MonoBehaviour
     {
+        public const float DetachDistance = .18f;
+        public const float DetachSeconds = .25f;
+
         public Transform Vehicle;
         public Transform Adjustment;
         public Renderer Surface;
+        public bool Detachable;
+        public CockpitInteractable Interaction;
+
         Camera rear;
         RenderTexture texture;
         Quaternion initial;
+        Vector3 anchor;
+        float strain;
+        bool detached;
         static int nextCamera;
         int slot;
+
+        public bool Detached => detached;
+
         void Start()
         {
             initial = Adjustment.localRotation;
+            anchor = transform.position;
             slot = nextCamera++ % 3;
-            texture = new RenderTexture(256, 128, 16) { name = "Rear mirror" };
+            texture = new RenderTexture(256, 128, 16) { name = "Retrovisor" };
             Surface.material.mainTexture = texture;
-            rear = new GameObject("Mirror camera").AddComponent<Camera>(); rear.transform.SetParent(Vehicle, false);
-            rear.targetTexture = texture; rear.fieldOfView = 58; rear.nearClipPlane = .1f; rear.farClipPlane = 110;
+            rear = new GameObject("Camara de retrovisor").AddComponent<Camera>();
+            rear.transform.SetParent(Vehicle, false);
+            rear.targetTexture = texture; rear.fieldOfView = 58;
+            rear.nearClipPlane = .1f; rear.farClipPlane = 110;
             rear.cullingMask = ~((1 << 8) | (1 << 9));
             rear.renderingPath = RenderingPath.UsePlayerSettings;
             rear.allowHDR = false;
-            rear.clearFlags = CameraClearFlags.SolidColor; rear.backgroundColor = RenderSettings.fogColor;
+            rear.clearFlags = CameraClearFlags.SolidColor;
+            rear.backgroundColor = RenderSettings.fogColor;
         }
+
         void LateUpdate()
         {
-            if (rear == null) return;
-            // One rear view per frame; mirrors retain the last rendered image in between.
-            rear.enabled = Time.frameCount % 3 == slot;
-            rear.transform.localPosition = new Vector3(0, 1, -2.15f);
-            rear.transform.localRotation = Quaternion.Euler(0, 180, 0) * Quaternion.Inverse(initial) * Adjustment.localRotation;
+            if (rear != null)
+            {
+                // Una vista trasera por frame; los retrovisores mantienen la ultima imagen mientras tanto.
+                rear.enabled = Time.frameCount % 3 == slot;
+                rear.transform.localPosition = new Vector3(0, 1, -2.15f);
+                rear.transform.localRotation = Quaternion.Euler(0, 180, 0) * Quaternion.Inverse(initial) * Adjustment.localRotation;
+            }
+            if (detached || !Detachable || Interaction == null) return;
+            if (!Interaction.IsHeld) { strain = 0f; return; }
+            strain = Vector3.Distance(transform.position, anchor) > DetachDistance ? strain + Time.deltaTime : 0f;
+            if (strain < DetachSeconds) return;
+            Detach();
         }
-        void OnDestroy() { if (rear != null) Destroy(rear.gameObject); if (texture != null) { texture.Release(); Destroy(texture); } }
+
+        void Detach()
+        {
+            detached = true;
+            strain = 0f;
+            if (rear != null) { Destroy(rear.gameObject); rear = null; }
+            transform.SetParent(null, true);
+            var body = gameObject.AddComponent<Rigidbody>();
+            body.mass = .4f;
+            gameObject.layer = 8;
+            var collider = gameObject.AddComponent<BoxCollider>();
+            collider.size = new Vector3(.24f, .07f, .03f);
+            Interaction.enabled = false;
+            PlayableRoot.Instance?.Click();
+        }
+
+        void OnDestroy()
+        {
+            if (rear != null) Destroy(rear.gameObject);
+            if (texture != null) { texture.Release(); Destroy(texture); }
+        }
     }
 }

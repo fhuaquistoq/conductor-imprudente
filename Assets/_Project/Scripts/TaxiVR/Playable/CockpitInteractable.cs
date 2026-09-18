@@ -96,6 +96,7 @@ namespace TaxiVR.Playable
             Travel = Mathf.InverseLerp(-half, half, lever);
             if (Travel > .62f) SetGear(1);
             else if (Travel < .38f) SetGear(-1);
+            else SetGear(0);
         }
         void SetGear(int direction)
         {
@@ -110,7 +111,8 @@ namespace TaxiVR.Playable
             if (Kind == CockpitKind.Knob) Visual.localRotation = initialRotation * Quaternion.Euler(0, 0, -Value * 240);
             if (Kind == CockpitKind.Gear)
             {
-                float home = Value >= 0 ? TravelLength * .5f : -TravelLength * .5f;
+                // El detente de reposo es la marcha engranada: F delante, O en el centro, R detras.
+                float home = requested * TravelLength * .5f;
                 if (!IsHeld) lever = Mathf.MoveTowards(lever, home, TravelLength * 8f * Time.deltaTime);
                 Visual.localRotation = initialRotation * Quaternion.Euler(lever / Mathf.Max(.0001f, TravelLength) * 18f, 0, 0);
             }
@@ -123,7 +125,12 @@ namespace TaxiVR.Playable
         public void ReturnHome()
         {
             holders.Clear(); transform.SetParent(homeParent); transform.localPosition = homePosition; transform.localRotation = initialRotation;
-            if (body != null) { body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; body.isKinematic = true; body.useGravity = false; }
+            if (body != null)
+            {
+                // Un cuerpo kinematico no admite velocidad: asignarla solo genera avisos en consola.
+                if (!body.isKinematic) { body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+                body.isKinematic = true; body.useGravity = false;
+            }
         }
     }
 }

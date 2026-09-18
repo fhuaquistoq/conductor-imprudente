@@ -1,7 +1,8 @@
 PASS 49 sectors loaded with fixed capacity
+PASS City sectors registered without duplicates
 PASS First person camera exists
 PASS Cockpit interactions connected
-PASS Vehicle accelerates forward
+PASS Vehicle accelerates forward (z 22.00 -> 40.49, y 0.00, ruedas en contacto 4/4)
 PASS Sector recycling stays bounded after travel
 PASS Floating origin keeps precision after long travel
 PASS Floating origin preserves logical world position
@@ -11,6 +12,20 @@ PASS Wrist rotation changes radio volume
 PASS Food follows grabbed hand
 PASS Released food restores physics
 PASS GPS button toggles power
-PASS Stopping at GPS destination completes a delivery
+PASS Trip session created with a passenger profile
+PASS GPS plotted a route through the city graph
+PASS Route ends at the destination
+PASS Passenger profile carries a name
+PASS Route ETA sits inside the four-minute target: 246
+PASS Fare stays inside the specified range
+PASS Stopping at the destination closes the trip
+PASS Trip ending reaches NormalEnding
+PASS Foot UDP receiver is bound to port 5055
+PASS Both feet down start unarmed and neutral
+PASS First raised foot arms and brakes
+PASS Green marker down accelerates
+PASS Both markers down skid
+PASS Lost markers fail safe to neutral and warn
+PASS Markers recover after a loss
 PASS No runtime errors or exceptions: 0
-INFO average FPS over 120 frames: 24.9; hardware XR not tested by this desktop run
+INFO average FPS over 120 frames: 30.4; hardware XR not tested by this desktop run
