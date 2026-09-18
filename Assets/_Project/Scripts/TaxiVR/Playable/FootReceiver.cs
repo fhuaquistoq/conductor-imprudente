@@ -69,8 +69,13 @@ namespace TaxiVR.Playable
                 try
                 {
                     var datagram = client.Receive(ref endpoint);
-                    if (FootProtocol.TryParse(Encoding.UTF8.GetString(datagram), out var packet)) queue.Enqueue(packet);
-                    if (queue.Count > 128) while (queue.TryDequeue(out _)) { }
+                    if (FootProtocol.TryParse(Encoding.UTF8.GetString(datagram), out var packet))
+                    {
+                        // Se descartan los mas viejos para dejar sitio al que llega, en vez de vaciar la cola
+                        // entera (que tiraria tambien el paquete recien recibido).
+                        while (queue.Count >= 128 && queue.TryDequeue(out _)) { }
+                        queue.Enqueue(packet);
+                    }
                 }
                 catch (SocketException) { }
                 catch (ObjectDisposedException) { break; }

@@ -62,6 +62,9 @@ namespace TaxiVR.Playable
             return glow;
         }
 
+        /// <summary>Libera los materiales derivados al cerrar el mundo.</summary>
+        public static void ClearCache() => emissive.Clear();
+
         public static GameObject Lamp(Transform parent, Vector3 position, float yaw, CityAssets assets)
         {
             var root = new GameObject("Farola");

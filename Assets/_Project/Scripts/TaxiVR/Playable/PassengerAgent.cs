@@ -650,6 +650,12 @@ namespace TaxiVR.Playable
             voice.volume = 1f;
         }
 
+        void OnDestroy()
+        {
+            // El clip se sintetiza por pasajero: hay que liberarlo al reciclarlo o se acumula uno por viaje.
+            if (voiceClip != null) Destroy(voiceClip);
+        }
+
         static float VoiceRoot(PassengerProfile profile)
         {
             if (profile == null) return VoiceRoots[0];

@@ -53,7 +53,7 @@ namespace TaxiVR.Playable
         /// <summary>Tamano de la reserva de peatones.</summary>
         public const int PedestrianPoolSize = 48;
 
-        const int VehicleLayer = 9;
+        const int VehicleLayer = Layers.Vehicle;
         const float DrivenRadius = 35f;
         const float DrivenSqr = DrivenRadius * DrivenRadius;
         const float RecycleDistance = 120f;

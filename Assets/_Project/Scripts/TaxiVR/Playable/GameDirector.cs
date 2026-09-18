@@ -42,7 +42,7 @@ namespace TaxiVR.Playable
         Vector2Int lastNode = new(int.MinValue, int.MinValue);
         Vector2Int? lastRedLightNode;
         int passengerIndex;
-        int sessionSeed = 20260918;
+        public int Seed = PlayableRoot.DefaultSeed;
         float lastStation;
         int lastClimate;
 
@@ -52,7 +52,6 @@ namespace TaxiVR.Playable
         {
             shutter = EyeShutter.Attach(Player?.View);
             shutter?.SetVision(0f);
-            sessionSeed = Random.Range(1, 1 << 30);
             Status = "Esperando al FootTracker";
         }
 
@@ -109,7 +108,7 @@ namespace TaxiVR.Playable
 
         void BuildSheet()
         {
-            Sheet = PassengerSheet.Create(City, Assets, PassengerCatalog.Create(passengerIndex, sessionSeed), Drive.transform);
+            Sheet = PassengerSheet.Create(City, Assets, PassengerCatalog.Create(passengerIndex, Seed), Drive.transform);
             Status = "Repartiendo";
         }
 
@@ -141,7 +140,7 @@ namespace TaxiVR.Playable
 
         void SpawnPassenger()
         {
-            Passenger = PassengerAgent.Create(City, Assets, PassengerCatalog.Create(passengerIndex, sessionSeed), Drive.transform);
+            Passenger = PassengerAgent.Create(City, Assets, PassengerCatalog.Create(passengerIndex, Seed), Drive.transform);
             Status = "Pasajero acercandose";
         }
 
@@ -177,9 +176,9 @@ namespace TaxiVR.Playable
 
         void StartTrip()
         {
-            var profile = Passenger?.Profile ?? PassengerCatalog.Create(passengerIndex, sessionSeed);
+            var profile = Passenger?.Profile ?? PassengerCatalog.Create(passengerIndex, Seed);
             var node = NodeAt(City.AbsolutePosition);
-            var routes = Graph.TryPickDestination(node, passengerIndex + 1 + sessionSeed, 225f, 255f, out var destination, out var found, 4, 32)
+            var routes = Graph.TryPickDestination(node, passengerIndex + 1 + Seed, 225f, 255f, out var destination, out var found, 4, 32)
                 ? found
                 : new System.Collections.Generic.List<System.Collections.Generic.List<Vector2Int>>();
             if (routes.Count == 0)

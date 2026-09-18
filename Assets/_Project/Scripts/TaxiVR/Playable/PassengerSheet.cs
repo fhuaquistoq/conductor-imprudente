@@ -19,7 +19,7 @@ namespace TaxiVR.Playable
         /// <summary>Tiempo que hay que mantener la compresion. Un roce no arruga nada: hay que insistir.</summary>
         public const float CrumpleSeconds = .5f;
 
-        const int InteractionLayer = 8;
+        const int InteractionLayer = Layers.Interaction;
 
         /// <summary>Medidas del papel y de la bola en la que acaba convertido.</summary>
         const float SheetWidth = .16f;
@@ -227,6 +227,12 @@ namespace TaxiVR.Playable
             voice.minDistance = .6f;
             voice.maxDistance = 10f;
             voice.volume = 1f;
+        }
+
+        void OnDestroy()
+        {
+            // El sonido se sintetiza por hoja: hay que liberarlo al reciclarla o se acumula uno por viaje.
+            if (crumpleClip != null) Destroy(crumpleClip);
         }
 
         static AudioClip CrumpleSound(string name)

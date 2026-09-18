@@ -146,6 +146,9 @@ namespace TaxiVR.Playable
             foreach (var candidate in root.GetComponentsInChildren<Transform>(true)) if (candidate.name == name) return candidate;
             return null;
         }
+
+        /// <summary>Libera la cache de medidas al cerrar el mundo: guarda un Bounds por prefab medido.</summary>
+        public static void ClearCache() => boundsCache.Clear();
     }
 
     /// <summary>Avisos de arte que falta, una sola vez por clave: la ciudad se levanta sector a sector y

@@ -64,8 +64,17 @@ namespace TaxiVR.Playable
             var center = CenterSector();
             // Si el catalogo de arte llega despues del primer reparto, el anillo esta vacio: hay que insistir.
             if (center != last || sectors.Count == 0) { last = center; Plan(); }
-            BuildOne(center);
+            BuildBudget(center);
             Rescue();
+        }
+
+        /// <summary>Levanta piezas mientras quede presupuesto de tiempo, en vez de una sola por fotograma: con
+        /// una por frame el anillo 7x7 tarda mas de cincuenta fotogramas en aparecer.</summary>
+        void BuildBudget(Vector2Int center)
+        {
+            float deadline = Time.realtimeSinceStartup + .002f;
+            do { BuildOne(center); }
+            while (pending.Count > 0 && Time.realtimeSinceStartup < deadline);
         }
 
         /// <summary>Reparte el anillo de sectores alrededor del taxi: suelta los que quedan fuera y encola los

@@ -206,7 +206,7 @@ namespace TaxiVR.Playable
         void BuildFood(FoodItem item, Vector3 position)
         {
             var root = new GameObject(item.ToString());
-            root.layer = 8;
+            root.layer = Layers.Interaction;
             root.transform.SetParent(cabin, false);
             root.transform.localPosition = position;
             Fill(root.transform, item);

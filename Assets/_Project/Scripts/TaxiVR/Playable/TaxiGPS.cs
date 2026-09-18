@@ -37,6 +37,11 @@ namespace TaxiVR.Playable
         float offRouteTime;
         Vector2Int lastNode = new(int.MinValue, int.MinValue);
         bool routeDirty = true;
+        // La textura es lo caro (256x192 RGBA): se repinta al cambiar de cruce, al recalcular la ruta o, como
+        // mucho, diez veces por segundo. La lectura de texto si puede cambiar cada fotograma.
+        const float RepaintInterval = .1f;
+        float repaintTimer;
+        Vector2Int paintedNode = new(int.MinValue, int.MinValue);
 
         public Vector2Int CurrentNode
         {
@@ -104,7 +109,8 @@ namespace TaxiVR.Playable
             if (Screen != null) Screen.enabled = true;
 
             var node = CurrentNode;
-            if (node != lastNode) { lastNode = node; routeDirty = true; }
+            bool moved = node != lastNode;
+            if (moved) { lastNode = node; routeDirty = true; }
 
             if (Path.Count > 0 && Drive != null)
             {
@@ -113,13 +119,25 @@ namespace TaxiVR.Playable
                 if (offRouteTime > OffRouteSeconds) { offRouteTime = 0f; routeDirty = true; }
             }
 
+            bool replotted = routeDirty;
             if (routeDirty)
             {
                 routeDirty = false;
                 Path = Graph.Shortest(node, Destination);
             }
 
+            repaintTimer -= Time.deltaTime;
+            bool dirty = replotted || moved || node != paintedNode;
+            if (!dirty && repaintTimer > 0f) { UpdateReadout(); return; }
+            repaintTimer = RepaintInterval;
+            paintedNode = node;
             Paint(node);
+        }
+
+        void UpdateReadout()
+        {
+            if (Readout != null)
+                Readout.text = Arrived ? "DETENTE 2 s PARA ENTREGAR" : $"DESTINO {Distance:0} m";
         }
 
         void Paint(Vector2Int node)
@@ -147,8 +165,7 @@ namespace TaxiVR.Playable
 
             map.SetPixels32(pixels);
             map.Apply(false);
-            if (Readout != null)
-                Readout.text = Arrived ? "DETENTE 2 s PARA ENTREGAR" : $"DESTINO {Distance:0} m";
+            UpdateReadout();
         }
 
         void DrawRoad(Vector2Int a, Vector2Int b, Vector2 here)
@@ -231,7 +248,7 @@ namespace TaxiVR.Playable
             rear.transform.SetParent(Vehicle, false);
             rear.targetTexture = texture; rear.fieldOfView = 58;
             rear.nearClipPlane = .1f; rear.farClipPlane = 110;
-            rear.cullingMask = ~((1 << 8) | (1 << 9));
+            rear.cullingMask = ~((1 << Layers.Interaction) | (1 << Layers.Vehicle));
             rear.renderingPath = RenderingPath.UsePlayerSettings;
             rear.allowHDR = false;
             rear.clearFlags = CameraClearFlags.SolidColor;
@@ -262,7 +279,7 @@ namespace TaxiVR.Playable
             transform.SetParent(null, true);
             var body = gameObject.AddComponent<Rigidbody>();
             body.mass = .4f;
-            gameObject.layer = 8;
+            gameObject.layer = Layers.Interaction;
             var collider = gameObject.AddComponent<BoxCollider>();
             collider.size = new Vector3(.24f, .07f, .03f);
             Interaction.enabled = false;

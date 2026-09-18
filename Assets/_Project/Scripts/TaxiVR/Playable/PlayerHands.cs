@@ -271,7 +271,7 @@ namespace TaxiVR.Playable
             View.transform.localRotation = Quaternion.Euler(pitch, yaw, 0);
             Ray ray = locked ? View.ViewportPointToRay(new Vector3(.5f, .5f, 0)) : View.ScreenPointToRay(mouse.position.ReadValue());
             CockpitInteractable hover = null;
-            if (Physics.Raycast(ray, out var hit, 1.6f, 1 << 8, QueryTriggerInteraction.Collide)) hover = hit.collider.GetComponentInParent<CockpitInteractable>();
+            if (Physics.Raycast(ray, out var hit, 1.6f, 1 << Layers.Interaction, QueryTriggerInteraction.Collide)) hover = hit.collider.GetComponentInParent<CockpitInteractable>();
             if (mouse.leftButton.wasPressedThisFrame && hover != null)
             {
                 desktopDistance = Mathf.Clamp(Vector3.Distance(View.transform.position, hit.point), .25f, .8f);
