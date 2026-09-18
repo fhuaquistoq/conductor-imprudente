@@ -36,7 +36,7 @@ o el argumento `-taxivr-desktop`.
 | Acelerar / frenar | W / S, Espacio o gatillos | Pie verde / pie rojo (FootTracker) |
 | Hablar al pasajero | Mantener **V** | Voz por el micrófono del visor |
 | Marcha F / O / R | Q / E | Agarrar la palanca y desplazarla |
-| Centrar vista | H | H, o ambas manos abiertas 2 s por debajo de 2 km/h |
+| Centrar vista | H | Botón de menú del mando izquierdo (el botón Meta del derecho lo reserva el sistema), o H en el PC |
 | Volver a la calle | R | R en el PC |
 
 El FootTracker es opcional y se activa solo: mientras lleguen paquetes frescos al puerto UDP 5055, los pies

@@ -160,31 +160,4 @@ namespace TaxiVR.Playable
             Director.Report(kind);
         }
     }
-
-    /// <summary>Recentrado de emergencia: ambas manos abiertas dos segundos, solo por debajo de 2 km/h.</summary>
-    public sealed class SeatedCalibration : MonoBehaviour
-    {
-        public const float OpenHandSeconds = 2f;
-        public const float MaximumSpeedKmh = 2f;
-
-        public PlayerHands Player;
-        public TaxiDrive Drive;
-
-        float held;
-
-        void Update()
-        {
-            if (Player == null || Drive == null) return;
-            bool open = BothHandsOpen();
-            bool still = Mathf.Abs(Drive.Speed) * 3.6f < MaximumSpeedKmh;
-            held = open && still ? held + Time.deltaTime : 0f;
-            if (held < OpenHandSeconds) return;
-            held = 0f;
-            Player.Recenter();
-        }
-
-        bool BothHandsOpen() =>
-            Player.TryGetHandPoint(0, out _) && Player.TryGetHandPoint(1, out _) &&
-            Player.HandOpen(0) && Player.HandOpen(1);
-    }
 }

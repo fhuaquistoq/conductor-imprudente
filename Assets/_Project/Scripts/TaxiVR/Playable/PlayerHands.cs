@@ -80,7 +80,11 @@ namespace TaxiVR.Playable
         void Update()
         {
             UpdateVoice();
-            if (Keyboard.current?.hKey.wasPressedThisFrame == true) calibrated = false;
+            // Un solo ajuste al empezar y, despues, recalibrado solo a mano. El boton de menu del mando
+            // izquierdo es el unico que la aplicacion puede leer: el boton Meta del derecho lo reserva el
+            // sistema para su menu universal.
+            if (Keyboard.current?.hKey.wasPressedThisFrame == true) Recenter();
+            if (MenuPressed(XRNode.LeftHand) || MenuPressed(XRNode.RightHand)) Recenter();
             if (Desktop) { DesktopInput(); return; }
             TrackHead();
             if (subsystem == null || !subsystem.running)
@@ -191,9 +195,10 @@ namespace TaxiVR.Playable
             point = index >= 0 && index < hands.Length ? hands[index].Point : Vector3.zero;
             return index >= 0 && index < hands.Length && hands[index].Tracked;
         }
-        public bool HandOpen(int index) => index >= 0 && index < hands.Length && hands[index].Tracked && hands[index].Open;
         public bool HandGripping(int index) => index >= 0 && index < hands.Length && hands[index].Tracked && !hands[index].Open;
         public void Recenter() => calibrated = false;
+        static bool MenuPressed(XRNode node) =>
+            UnityEngine.XR.InputDevices.GetDeviceAtXRNode(node).TryGetFeatureValue(CommonUsages.menuButton, out bool pressed) && pressed;
 
         // Actividad de voz local: solo se mide el nivel del microfono, sin reconocimiento ni grabacion.
         // El pasajero conversador premia que se le hable; el silencioso premia el silencio.

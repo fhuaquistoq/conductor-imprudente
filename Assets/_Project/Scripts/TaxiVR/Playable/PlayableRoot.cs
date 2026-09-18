@@ -159,7 +159,6 @@ namespace TaxiVR.Playable
             Director.Interior = Interior;
             var recovery = car.AddComponent<TaxiRecovery>(); recovery.Drive = Drive; recovery.Director = Director;
             var collisions = car.AddComponent<CollisionReporter>(); collisions.Drive = Drive; collisions.Director = Director;
-            var recenter = gameObject.AddComponent<SeatedCalibration>(); recenter.Player = Player; recenter.Drive = Drive;
         }
         static int SeedFromArguments()
         {
