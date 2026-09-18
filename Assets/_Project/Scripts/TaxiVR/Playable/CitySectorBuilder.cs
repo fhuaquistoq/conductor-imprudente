@@ -113,14 +113,15 @@ namespace TaxiVR.Playable
             // la silueta lejana tiene perfil de ciudad en lugar de un muro continuo.
             int seed = CityMath.Hash(key.x, key.y);
             float height = 9f + seed % 5 * 3.2f;
-            var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            box.name = "Manzana lejana";
+            var box = new GameObject("Manzana lejana");
             box.transform.SetParent(root.transform, false);
             box.transform.localPosition = new Vector3(x0 + width * .5f, height * .5f, z0 + depth * .5f);
             box.transform.localScale = new Vector3(width, height, depth);
-            var renderer = box.GetComponent<Renderer>();
+            box.AddComponent<MeshFilter>().sharedMesh = PrimitiveMesh.Cube;
+            var renderer = box.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = assets.DistantBuilding;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            box.AddComponent<BoxCollider>();
             return root;
         }
 

@@ -47,17 +47,33 @@ namespace TaxiVR.Playable
 
         public static GameObject Part(string name, Transform parent, Vector3 position, Vector3 size, Material material, PrimitiveType type = PrimitiveType.Cube, bool collider = false)
         {
-            var go = GameObject.CreatePrimitive(type); go.name = name; go.transform.SetParent(parent, false);
+            var go = new GameObject(name); go.transform.SetParent(parent, false);
             go.transform.localPosition = position; go.transform.localScale = size;
-            go.GetComponent<Renderer>().sharedMaterial = material;
+            go.AddComponent<MeshFilter>().sharedMesh = PrimitiveMesh.Of(type);
+            go.AddComponent<MeshRenderer>().sharedMaterial = material;
             // El collider se desactiva, nunca se destruye: destruirlo aqui reindexa los componentes
             // del objeto y corrompe la serializacion de la escena horneada.
-            if (!collider)
-            {
-                var component = go.GetComponent<Collider>();
-                if (component != null) component.enabled = false;
-            }
+            var component = AddCollider(go, type);
+            if (component != null) component.enabled = collider;
             return go;
+        }
+
+        /// <summary>El mismo collider que ponia la primitiva de Unity, para no cambiar como choca nada: cubo a
+        /// caja, esfera a esfera y cilindro a capsula, que es lo que hacia CreatePrimitive.</summary>
+        static Collider AddCollider(GameObject go, PrimitiveType type)
+        {
+            switch (type)
+            {
+                case PrimitiveType.Sphere: return go.AddComponent<SphereCollider>();
+                case PrimitiveType.Capsule: return go.AddComponent<CapsuleCollider>();
+                case PrimitiveType.Cylinder: return go.AddComponent<CapsuleCollider>();
+                case PrimitiveType.Quad:
+                case PrimitiveType.Plane:
+                    var meshCollider = go.AddComponent<MeshCollider>();
+                    meshCollider.sharedMesh = PrimitiveMesh.Of(type);
+                    return meshCollider;
+                default: return go.AddComponent<BoxCollider>();
+            }
         }
 
         public static TextMesh Label(string name, Transform parent, Vector3 position, string text, float size, Color color, Font font)
