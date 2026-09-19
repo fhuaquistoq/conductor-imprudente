@@ -162,6 +162,10 @@ namespace TaxiVR.Playable
             // El asiento del conductor sigue al jugador cuando se echa atras, para que no lo atraviese.
             var seat = Find(GameConstants.DriverSeat);
             if (seat != null) { var companion = seat.gameObject.AddComponent<SeatCompanion>(); companion.Head = Player.View.transform; }
+            // El del copiloto queda montado pero sin cabeza a la que seguir: se la tiene que dar quien lo ocupe
+            // (el pasajero, cuando se sienta). Sin cabeza no hace nada, asi que no puede molestar.
+            var coDriver = Find(GameConstants.CoDriverSeat);
+            if (coDriver != null) coDriver.gameObject.AddComponent<SeatCompanion>();
         }
         static int SeedFromArguments()
         {

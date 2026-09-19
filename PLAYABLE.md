@@ -241,6 +241,12 @@ Documentadas por exigencia del propio documento (§1). Todas son deliberadas.
    para cuando el tracking de manos se pierde, y el recentrado de emergencia es ese botón de menú en vez del gesto
    de ambas manos abiertas 2 s que pide la especificación. Los perfiles Touch siguen activados en OpenXR y
    `PlayableBuilder.Verify()` los exige, así que el APK no sale solo con manos.
+10. **El asiento del conductor se mueve con el jugador** — la especificación pide asientos rígidos, pero uno
+    rígido se atraviesa en cuanto el jugador se echa atrás, porque la cabeza entra en el respaldo. `SeatCompanion`
+    reclina y separa `PIVOT_ASIENTO_CONDUCTOR` lo justo para que siga quedando por detrás de la cabeza y lo
+    devuelve a su sitio al incorporarse; la referencia es la postura de arranque, así que está quieto al conducir.
+    Los cuatro números del movimiento son campos del Inspector porque se ajustan con el visor puesto. El asiento
+    del copiloto lleva el mismo componente sin cabeza a la que seguir, a la espera de que el pasajero lo enlace.
 
 ## Cadena de suministro
 
