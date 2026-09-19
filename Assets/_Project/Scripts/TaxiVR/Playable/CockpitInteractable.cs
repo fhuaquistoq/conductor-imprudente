@@ -39,7 +39,19 @@ namespace TaxiVR.Playable
         {
             var p = transform.InverseTransformPoint(point);
             if (Kind == CockpitKind.Wheel) return Mathf.Abs(p.z) < .12f && Mathf.Abs(new Vector2(p.x, p.y).magnitude - Radius) < .09f;
-            return Vector3.Distance(point, transform.position) < Radius;
+            if (Vector3.Distance(point, transform.position) < Radius) return true;
+            // Una palanca se agarra del pomo, que queda lejos del pivote: midiendo solo contra el anclaje, el
+            // pomo se quedaba fuera de alcance y solo se podia agarrar por el palo. Se mira tambien la distancia
+            // a la geometria real de la pieza, que es lo que la mano toca.
+            return Kind == CockpitKind.Gear && Reach().SqrDistance(point) < Radius * Radius;
+        }
+        Bounds Reach()
+        {
+            var renderers = Visual.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) return new Bounds(transform.position, Vector3.zero);
+            var bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+            return bounds;
         }
         float Angle(Vector3 point) { var p = transform.InverseTransformPoint(point); return Mathf.Atan2(p.y, p.x) * Mathf.Rad2Deg; }
         float LeverPosition(Vector3 point) => transform.parent.InverseTransformPoint(point).z - homePosition.z;
@@ -117,10 +129,24 @@ namespace TaxiVR.Playable
                 Visual.localRotation = initialRotation * Quaternion.Euler(lever / Mathf.Max(.0001f, TravelLength) * 18f, 0, 0);
             }
             if (Kind == CockpitKind.Button) Visual.localPosition = visualHome + Vector3.forward * (Time.time - lastPress < .16f ? .006f : 0);
-            if (Kind == CockpitKind.Loose && !IsHeld && homeParent != null && (transform.position.y < -.5f || Vector3.Distance(transform.position, homeParent.position) > 5)) ReturnHome();
+            if (Kind == CockpitKind.Loose && !IsHeld && homeParent != null)
+            {
+                // Si se ha ido del coche, se pierde: el jugador decidio tirarla y no debe reaparecer.
+                if (Vector3.Distance(transform.position, homeParent.position) > 5f) Lost();
+                // Caer por debajo del coche es un fallo, no una decision: se devuelve a su sitio. La altura se
+                // mide contra el coche y no contra el mundo, porque el origen flotante mueve el mundo entero.
+                else if (transform.position.y < homeParent.position.y - .5f) ReturnHome();
+            }
             stale.Clear();
             foreach (var pair in holders) if (Time.time - pair.Value.Time > .25f) stale.Add(pair.Key);
             foreach (int hand in stale) Release(hand);
+        }
+        /// <summary>Una pieza que sale del coche se pierde para siempre. Se apaga, y al salir de la lista de
+        /// interactuables deja de poder agarrarse.</summary>
+        public void Lost()
+        {
+            holders.Clear();
+            gameObject.SetActive(false);
         }
         public void ReturnHome()
         {
