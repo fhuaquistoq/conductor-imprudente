@@ -58,12 +58,18 @@ public static class TaxiDevelopmentBridge
                 enable.Invoke(null, new object[] { BuildTargetGroup.Android });
                 enable.Invoke(null, new object[] { BuildTargetGroup.Standalone });
             }
+            else if (command == "quest")
+            {
+                var type = Type.GetType("TaxiVR.Bootstrap.Editor.QuestApkBuilder, TaxiVR.Editor", true);
+                type.GetMethod("Build").Invoke(null, null);
+            }
             else if (command == "configure" || command == "build" || command == "verify")
             {
                 if (EditorApplication.isPlaying) throw new InvalidOperationException("Exit Play Mode first.");
                 var type = Type.GetType("TaxiVR.Playable.Editor.PlayableBuilder, TaxiVR.Editor", true);
                 type.GetMethod(command == "configure" ? "Configure" : command == "build" ? "Build" : "Verify").Invoke(null, null);
             }
+            else throw new InvalidOperationException("Comando no reconocido: " + command);
             File.WriteAllText("Logs/TaxiCommandResult.txt", command + " OK " + DateTime.Now);
         }
         catch (Exception e) { File.WriteAllText("Logs/TaxiCommandResult.txt", command + " FAILED " + e); Debug.LogException(e); }
