@@ -212,7 +212,8 @@ namespace TaxiVR.Playable
             Fill(root.transform, item);
             var collider = root.AddComponent<SphereCollider>();
             collider.radius = .055f;
-            collider.isTrigger = true;
+            // Solido y no trigger: con un trigger el Rigidbody la atravesaba todo y la comida se caia al vacio.
+            collider.isTrigger = false;
             var body = root.AddComponent<Rigidbody>();
             body.mass = .12f;
             body.isKinematic = true;
