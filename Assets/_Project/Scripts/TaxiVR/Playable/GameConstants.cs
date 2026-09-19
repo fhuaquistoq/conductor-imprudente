@@ -30,6 +30,7 @@ namespace TaxiVR.Playable
         public const string LeftMirror = "PIVOT_RETROVISOR_ORIGINAL_L";
         public const string RightMirror = "PIVOT_RETROVISOR_ORIGINAL_R";
         public const string FrontGlass = "Taxi_L_FRONT_GLASS";
+        public const string DriverSeat = "PIVOT_ASIENTO_CONDUCTOR";
 
         public static readonly Vector3 RadioPower = new(-.043f, .6f, .445f);
         public static readonly Vector3 Station = new(.035f, .6f, .445f);
