@@ -22,15 +22,16 @@ namespace TaxiVR.Playable
         public Vector3 SeatEye = new(-.36f, 1.06f, -.28f);
 
         /// <summary>Distancia indice-pulgar, en metros, por debajo de la cual la mano agarra con la pinza.</summary>
-        public float PinchDistance = .035f;
+        public float PinchDistance = .025f;
 
         /// <summary>Distancia media de las puntas del indice y el corazon a la palma, en fraccion del tamano de
         /// la mano, por debajo de la cual la mano se considera cerrada en torno a algo. Es el numero a ajustar
         /// con el visor puesto si el volante, la palanca o el papel cuestan de agarrar.</summary>
-        public float ClosedHandCurl = 1f;
+        public float ClosedHandCurl = .9f;
 
-        /// <summary>Holgura para entrar y salir del agarre sin temblar.</summary>
-        public float GripHysteresis = .15f;
+        /// <summary>Holgura para no soltar por un temblor. Tiene que ser pequena: sumada al umbral de pinza, una
+        /// holgura grande deja la mano agarrada para siempre y el jugador no puede volver a agarrar.</summary>
+        public float GripHysteresis = .02f;
         readonly List<XRHandSubsystem> subsystems = new();
         readonly HandState[] hands = { new(), new() };
         XRHandSubsystem subsystem;
@@ -173,7 +174,7 @@ namespace TaxiVR.Playable
             var touch = Closest(tip, true);
             if (touch != null && touch != state.Touching) { touch.Press(); Pulse(index == 0); }
             state.Touching = touch;
-            if (gripping && !state.WasGrip)
+            if (gripping && state.Held == null)
             {
                 var target = Closest(point, false);
                 if (target != null && target.Grab(index, point, rotation)) { state.Held = target; Pulse(index == 0); }
