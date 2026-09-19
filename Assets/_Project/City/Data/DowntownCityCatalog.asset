@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: DowntownCityCatalog
   m_EditorClassIdentifier: TaxiVR.Runtime::TaxiVR.City.CityCatalog
   LoadRadius: 3
-  DetailRadius: 1
+  DetailRadius: 2
   SectorTemplates:
   - {fileID: 1304702751762604523, guid: 39e640bc89c9adf42ad89961a8d26196, type: 3}
   - {fileID: 3646719505567088049, guid: 59944fa18a682bf419cc3aa1e70cb85e, type: 3}

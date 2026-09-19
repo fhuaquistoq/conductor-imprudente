@@ -187,7 +187,7 @@ namespace TaxiVR.Playable
             var curb = new Vector3(centre.x + facing.x * offset, CityGrid.CurbHeight, centre.z + facing.z * offset);
             int seed = CityMath.Hash(block.Origin.x * 17 + x * 3, block.Origin.y * 17 + z * 5);
             float yaw = Yaw(facing);
-            int kind = seed % 12;
+            int kind = seed % 6;
 
             if (kind == 0) CityProps.Lamp(parent, curb + facing * 1.1f, yaw, assets);
             else if (kind == 1) CityProps.Bench(parent, curb + facing * 1.5f, yaw + 90f, assets);
@@ -200,7 +200,7 @@ namespace TaxiVR.Playable
             // Decoracion blanda: el coche la tira. Va pegada a la fachada para que se vea al pasar y no estorbe.
             var wall = new Vector3(centre.x + facing.x * (offset - 2.6f), CityGrid.CurbHeight, centre.z + facing.z * (offset - 2.6f));
             var side = new Vector3(facing.z, 0, -facing.x);
-            switch (seed % 7)
+            switch (seed % 6)
             {
                 case 0: CityProps.Bin(parent, wall + facing * .2f, yaw, assets); break;
                 case 1:
