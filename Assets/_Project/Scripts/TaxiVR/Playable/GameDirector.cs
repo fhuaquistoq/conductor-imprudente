@@ -24,7 +24,7 @@ namespace TaxiVR.Playable
         public InteriorControls Interior;
         public PoliceSystem Police;
         public CityAssets Assets;
-        public CityGraph Graph;
+        [System.NonSerialized] public CityGraph Graph;
 
         public GameStateMachine Flow { get; } = new GameStateMachine();
         public TripSession Trip { get; private set; }

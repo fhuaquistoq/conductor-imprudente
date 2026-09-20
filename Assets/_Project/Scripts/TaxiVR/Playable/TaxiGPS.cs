@@ -15,7 +15,7 @@ namespace TaxiVR.Playable
 
         public EndlessCity City;
         public TaxiDrive Drive;
-        public CityGraph Graph;
+        [System.NonSerialized] public CityGraph Graph;
         public Renderer Screen;
         public TextMesh Readout;
 

@@ -104,7 +104,7 @@ namespace TaxiVR.Playable
         public EndlessCity City;
         public CityAssets Assets;
         public Transform Taxi;
-        public CityGraph Graph;
+        [System.NonSerialized] public CityGraph Graph;
 
         /// <summary>Presion de trafico global, 0..1. Se sortea del cruce del taxi cada 10 s y se persigue con
         /// suavidad para que la ciudad no cambie de golpe al cruzar una esquina.</summary>

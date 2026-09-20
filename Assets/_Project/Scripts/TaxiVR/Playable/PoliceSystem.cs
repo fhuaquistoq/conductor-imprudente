@@ -89,7 +89,7 @@ namespace TaxiVR.Playable
         public EndlessCity City;
         public CityAssets Assets;
         public TaxiDrive Drive;
-        public Gameplay.CityGraph Graph;
+        [System.NonSerialized] public Gameplay.CityGraph Graph;
 
         /// <summary>Hay persecucion en curso. El director lo usa para saber si debe consultar el desenlace.</summary>
         public bool Active { get; private set; }
