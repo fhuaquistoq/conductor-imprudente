@@ -8,6 +8,10 @@ using UnityEngine;
 using UnityEditor.TestTools.TestRunner.Api;
 
 // Local, project-scoped development commands. No network listener or arbitrary code execution.
+// Solo existe con el define TAXIVR_DEVTOOLS (o dentro de un development build): el Editor de produccion
+// no debe cargar automatizacion de desarrollo. Para reactivarlo, anade TAXIVR_DEVTOOLS a los defines
+// de scripting del Editor o compila en modo Development.
+#if DEVELOPMENT_BUILD || TAXIVR_DEVTOOLS
 [InitializeOnLoad]
 public static class TaxiDevelopmentBridge
 {
@@ -159,3 +163,4 @@ public static class TaxiDevelopmentBridge
         return bounds;
     }
 }
+#endif

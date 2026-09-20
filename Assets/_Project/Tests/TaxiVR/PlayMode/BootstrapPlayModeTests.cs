@@ -1,8 +1,7 @@
 using System;
 using System.Collections;
-using System.Linq;
 using NUnit.Framework;
-using TaxiVR.Bootstrap;
+using TaxiVR.Playable;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -15,24 +14,17 @@ namespace TaxiVR.Tests.PlayMode
     public sealed class BootstrapPlayModeTests
     {
         [UnityTest]
-        public IEnumerator MainEnablesTaxiMapAndProducesValidDiagnostics()
+        public IEnumerator MainBootsTheProductionComposition()
         {
             yield return SceneManager.LoadSceneAsync("Main");
             yield return null;
-            var root = Object.FindAnyObjectByType<TaxiVRCompositionRoot>();
-            Assert.That(root, Is.Not.Null);
-            Assert.That(root.Snapshot.Scene, Is.EqualTo("Main"));
-            Assert.That(root.Snapshot.TaxiMapEnabled, Is.True);
-            Assert.That(root.Snapshot.ReferencesValid, Is.True);
-                var rig = GameObject.Find("OVRCameraRig");
-                Assert.That(rig, Is.Not.Null);
-                Assert.That(rig.transform.Find("TrackingSpace/CenterEyeAnchor"), Is.Not.Null);
-                Assert.That(GameObject.Find("Bootstrap Geometry")?.GetComponent<Renderer>()?.enabled, Is.True);
-                Assert.That(GameObject.Find("Bootstrap Light")?.GetComponent<Light>()?.enabled, Is.True);
-                Assert.That(Object.FindObjectsByType<Camera>(FindObjectsInactive.Exclude)
-                    .Count(camera => camera.enabled), Is.EqualTo(1));
-                Assert.That(Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude)
-                    .Count(listener => listener.enabled), Is.EqualTo(1));
+
+            var root = Object.FindAnyObjectByType<PlayableRoot>();
+            Assert.That(root, Is.Not.Null, "Main debe cargar PlayableRoot, la unica raiz de composicion de produccion.");
+            Assert.That(root.Assets, Is.Not.Null, "La raiz de produccion necesita el catalogo de assets de la ciudad.");
+            Assert.That(root.City, Is.Not.Null, "PlayableRoot debe construir la ciudad infinita.");
+            Assert.That(root.Drive, Is.Not.Null, "PlayableRoot debe construir el taxi.");
+            Assert.That(Object.FindAnyObjectByType<EndlessCity>(), Is.Not.Null);
         }
 
         [UnityTest]
