@@ -60,7 +60,9 @@ namespace TaxiVR.Playable
         }
         IEnumerator Start()
         {
-            bool desktop = ForceDesktop || Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-desktop") >= 0;
+            // Escritorio pedido a proposito (casilla o argumento): no es un fallo, es una decision de quien arranca.
+            bool explicitDesktop = ForceDesktop || Array.IndexOf(Environment.GetCommandLineArgs(), "-taxivr-desktop") >= 0;
+            bool desktop = explicitDesktop;
             if (!desktop)
             {
                 var manager = XRGeneralSettings.Instance?.Manager;
@@ -85,14 +87,38 @@ namespace TaxiVR.Playable
                 else Debug.LogWarning("No hay XRGeneralSettings activo en el proyecto. Se activan los controles de teclado y raton.");
                 desktop = !initializedXR;
             }
+            // §10: en Android un fallo de OpenXR no cae a escritorio. Los controles de teclado no sirven con el
+            // visor puesto, asi que se para el juego con un aviso en vez de dejar correr gameplay 3D sin XR.
+            if (FatalXrSetupScreen.MustHalt(Application.platform, explicitDesktop, initializedXR))
+            {
+                FatalXrSetupScreen.Show();
+                HaltGameplayForFatalXr();
+                yield break;
+            }
             Player.Desktop = desktop;
             // Diagnostico de campo: deja un snapshot en persistentDataPath para poder revisar una partida sin
             // depender de la consola del editor.
             var diagnostics = new RuntimeDiagnostics();
             diagnostics.Write(diagnostics.Capture(true, true));
             var arguments = Environment.GetCommandLineArgs();
-            if (Array.IndexOf(arguments, "-taxivr-verify") >= 0) gameObject.AddComponent<PlayableVerification>();
-            if (Array.IndexOf(arguments, "-taxivr-debug") >= 0 || Application.isEditor && ShowDebugInEditor) gameObject.AddComponent<DebugOverlay>();
+            bool verification = Array.IndexOf(arguments, "-taxivr-verify") >= 0;
+            bool explicitDebug = Array.IndexOf(arguments, "-taxivr-debug") >= 0;
+            if (verification) gameObject.AddComponent<PlayableVerification>();
+            // La vista debug vive en las compilaciones de desarrollo (en el visor, con el perfil "Meta Quest
+            // Development"). El harness la silencia salvo que se pida a mano, para no ensuciar sus capturas.
+            if (explicitDebug || Application.isEditor && ShowDebugInEditor || Debug.isDebugBuild && !verification) gameObject.AddComponent<DebugOverlay>();
+        }
+        // Estado terminal: se apagan los sistemas de juego para que la partida no avance por detras del aviso.
+        void HaltGameplayForFatalXr()
+        {
+            if (Player != null) Player.enabled = false;
+            if (Drive != null) Drive.enabled = false;
+            if (Director != null) Director.enabled = false;
+            if (GPS != null) GPS.enabled = false;
+            if (Interior != null) Interior.enabled = false;
+            if (Skid != null) Skid.enabled = false;
+            if (Traffic != null) Traffic.enabled = false;
+            if (Police != null) Police.enabled = false;
         }
         void BuildWorld()
         {
@@ -160,11 +186,11 @@ namespace TaxiVR.Playable
             var recovery = car.AddComponent<TaxiRecovery>(); recovery.Drive = Drive; recovery.Director = Director;
             var collisions = car.AddComponent<CollisionReporter>(); collisions.Drive = Drive; collisions.Director = Director;
             // El asiento del conductor sigue al jugador cuando se echa atras, para que no lo atraviese.
-            var seat = Find(GameConstants.DriverSeat);
+            var seat = Find(CockpitAnchors.DriverSeat);
             if (seat != null) { var companion = seat.gameObject.AddComponent<SeatCompanion>(); companion.Head = Player.View.transform; }
             // El del copiloto queda montado pero sin cabeza a la que seguir: se la tiene que dar quien lo ocupe
             // (el pasajero, cuando se sienta). Sin cabeza no hace nada, asi que no puede molestar.
-            var coDriver = Find(GameConstants.CoDriverSeat);
+            var coDriver = Find(CockpitAnchors.CoDriverSeat);
             if (coDriver != null) coDriver.gameObject.AddComponent<SeatCompanion>();
         }
         static int SeedFromArguments()
