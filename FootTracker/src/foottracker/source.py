@@ -48,6 +48,67 @@ def open_capture(source: int | str, open_timeout: float, factory: CaptureFactory
     return factory(source, cv2.CAP_FFMPEG, params)
 
 
+@dataclass(frozen=True)
+class CameraInfo:
+    """Resultado de sondear un indice de webcam: si responde y a que resolucion."""
+
+    index: int
+    available: bool
+    width: int = 0
+    height: int = 0
+
+    def describe(self) -> str:
+        if not self.available:
+            return f"camara {self.index} -> sin senal"
+        if self.width and self.height:
+            return f"camara {self.index} -> {self.width}x{self.height}"
+        return f"camara {self.index} -> conectada"
+
+
+def probe_camera(index: int, factory: CaptureFactory = default_factory) -> CameraInfo:
+    """Abre el indice, intenta leer un frame y lo cierra. Nunca lanza."""
+
+    capture = None
+    try:
+        capture = factory(int(index))
+        if not capture.isOpened():
+            return CameraInfo(int(index), False)
+        ok, frame = capture.read()
+        if ok and frame is not None and getattr(frame, "size", 0):
+            return CameraInfo(int(index), True, int(frame.shape[1]), int(frame.shape[0]))
+        return CameraInfo(int(index), True)
+    except Exception:  # el sondeo diagnostica, nunca tumba el proceso
+        return CameraInfo(int(index), False)
+    finally:
+        if capture is not None:
+            capture.release()
+
+
+def list_cameras(max_devices: int = 5, factory: CaptureFactory = default_factory) -> list[CameraInfo]:
+    """Sondea 0..N-1 y para en el primer hueco despues de haber encontrado una camara.
+
+    Se sigue sondeando mientras no aparezca ninguna, porque en Windows es normal que el
+    indice 0 este libre y la webcam recien conectada caiga en el 1 o el 2.
+    """
+
+    found: list[CameraInfo] = []
+    for index in range(max(int(max_devices), 1)):
+        info = probe_camera(index, factory)
+        if not info.available and any(known.available for known in found):
+            break
+        found.append(info)
+    return found
+
+
+def first_available_camera(max_devices: int = 5, *, finder: Callable[..., list[CameraInfo]] = list_cameras) -> int | None:
+    """Indice de la primera webcam que responde, para `--camera auto`."""
+
+    for info in finder(max_devices):
+        if info.available:
+            return info.index
+    return None
+
+
 class FrameBuffer:
     """Ultimo frame leido con su marca de tiempo, compartido entre hilos."""
 
@@ -284,7 +345,9 @@ def phone_camera(url: str, width: int = 640, height: int = 480, fps: int = 30) -
     return CameraSource(url, width, height, fps)
 
 
-def parse_camera(value: str) -> int | str:
+def parse_camera(value: str | int) -> int | str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return int(value)
     text = value.strip()
     if text.isdigit():
         return int(text)
