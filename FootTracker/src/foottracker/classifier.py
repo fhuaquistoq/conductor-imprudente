@@ -75,6 +75,8 @@ class MarkerResult:
     valid: bool
     height_cm: float | None = None
     delta_cm: float | None = None
+    confidence: float = 0.0
+    value: float | None = None
 
 
 def mask_of(hsv: np.ndarray, settings: MarkerSettings) -> np.ndarray:
@@ -232,6 +234,20 @@ class MarkerTracker:
             return None
         return max(self.down_y - float(sample.centroid_y), 0.0) * scale
 
+    def lift_fraction(self, sample: MarkerSample) -> float | None:
+        """Recorrido normalizado 0..1 del pie (0 apoyado, 1 levantado del todo).
+
+        Se mide contra el mismo umbral que decide `up`/`down`, asi que sirve igual en modo
+        `pixels` que en `relative` sin convertir unidades.
+        """
+
+        if not sample.valid or sample.centroid_y is None or self.down_y is None:
+            return None
+        threshold = self.threshold_for(sample)
+        if threshold <= 0:
+            return None
+        return min(max((self.down_y - float(sample.centroid_y)) / threshold, 0.0), 1.0)
+
     def move_cm(self, sample: MarkerSample) -> float | None:
         """Cuanto se movio el marcador desde el frame anterior (positivo = baja, pisa)."""
 
@@ -272,7 +288,7 @@ class MarkerTracker:
                 self.down_y = float(median(self._samples)) if self._samples else None
             if self.down_y is None and not self._samples:
                 return MarkerResult(FootState.UNKNOWN, False)
-            return MarkerResult(FootState.DOWN, sample.valid)
+            return MarkerResult(FootState.DOWN, sample.valid, confidence=sample.confidence)
 
         if not sample.valid or self.down_y is None:
             return MarkerResult(FootState.UNKNOWN, False)
@@ -286,7 +302,8 @@ class MarkerTracker:
         else:
             raw = self.state if self.state != FootState.UNKNOWN else FootState.DOWN
         self._debounce(raw)
-        return MarkerResult(self.state, True, self.height_cm(sample), self.move_cm(sample))
+        value = self.lift_fraction(sample)
+        return MarkerResult(self.state, True, self.height_cm(sample), self.move_cm(sample), sample.confidence, value)
 
     def _debounce(self, raw: FootState) -> None:
         if raw == self.state:

@@ -49,9 +49,10 @@ La ventana de diagnóstico muestra `calibrando` y luego `listo`.
 
 | Opción | Descripción |
 | --- | --- |
-| `--camera` | Índice de webcam (`0`, `1`, …), URL del celular (`http://192.168.0.5:8080/video`) o `auto` (la primera conectada) |
-| `--host`, `--port` | Destino UDP. Por defecto `127.0.0.1:5055` |
-| `--rate` | Paquetes por segundo. Por defecto `30` |
+| `--config` | Perfil TOML de destino. Por defecto `config.toml` si existe |
+| `--camera` | Índice de webcam (`0`, `1`, …), URL del celular (`http://192.168.0.5:8080/video`) o `auto` (la primera conectada). Gana al perfil |
+| `--host`, `--port` | Destino UDP; ganan al perfil. Por defecto `127.0.0.1:5055` |
+| `--rate` | Paquetes por segundo; gana al perfil. Por defecto `30` |
 | `--width`, `--height`, `--fps` | Resolución y frecuencia solicitadas a la cámara |
 | `--camera-timeout` | Segundos máximos para abrir una cámara de red. Por defecto `5` |
 | `--frame-stale` | Antigüedad máxima (s) del frame para considerarlo imagen. Por defecto `0.3` |
@@ -76,6 +77,38 @@ La ventana de diagnóstico muestra `calibrando` y luego `listo`.
 
 El celular puede presentarse a Windows como **webcam USB**, que es lo recomendado porque no
 añade latencia. Por Wi-Fi también funciona: ver *Cámara por Wi-Fi*.
+
+## Quest independiente (PC → visor por Wi-Fi)
+
+El juego puede correr dentro del Quest sin cable. El FootTracker se queda en el PC, pero en vez
+de apuntar a loopback manda los paquetes a la **IP del Quest** en la misma red:
+
+```toml
+# FootTracker/config.toml
+mode = "quest"
+target_host = "192.168.1.42"
+target_port = 5055
+camera_index = 0
+send_rate = 30
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m foottracker
+```
+
+- La IP del visor la muestra el propio Quest en **Configuración > Wi-Fi > (tu red)**, o con
+  `adb shell ip route` si lo tienes conectado por USB.
+- Con `mode = "quest"`, `target_host` tiene que ser la IP del visor. Si dejas `127.0.0.1` el
+  perfil se rechaza con un aviso, porque ahí el que recibiría sería el propio Quest.
+- El APK ya pide `android.permission.INTERNET` y el juego escucha en `0.0.0.0:5055`, así que
+  acepta paquetes de la LAN sin configurar nada más.
+- Usa una red de **5 GHz con aislamiento de clientes desactivado**: con aislamiento, el PC y el
+  visor no se ven aunque estén en la misma red.
+- La línea de comandos sigue ganando al fichero: `--host 192.168.1.42` puntual sobreescribe el perfil.
+- Con la build de desarrollo en el visor (`Tools/build-quest-apk.ps1 -Development`) se ve la
+  vista debug con pedales, paquetes/s, pérdida, latencia y estado del enlace.
+
+Para el modo de siempre — juego en el PC, con o sin Quest Link — basta `mode = "desktop"`.
 
 ## Cámara por Wi-Fi
 
@@ -220,29 +253,37 @@ Qué aporta el perfil:
   y `--json-status` la añade a cada paquete:
 
 ```json
-{"version":1,"seq":1821,"red":"up","green":"down","redValid":true,"greenValid":true,"redHeightCm":3.4,"greenHeightCm":0.0}
+{"version":2,"sequence":1821,"timestamp":1789800123.22,"calibrated":true,"brake":{"pressed":false,"confidence":0.94,"value":0.9},"accelerator":{"pressed":true,"confidence":0.9,"value":0.0},"brakeHeightCm":3.4,"acceleratorHeightCm":0.0}
 ```
 
 La altura es una estimación: mide el desplazamiento vertical del marcador sobre la escala de
-la foto de suelo, así que una perspectiva muy oblicua la exagera. El **contrato UDP hacia
-Unity no cambia**: siguen siendo `up`, `down` y `unknown`, y la altura solo va al diagnóstico
-local (vista previa y `--json-status`).
+la foto de suelo, así que una perspectiva muy oblicua la exagera. La altura solo va al
+diagnóstico local (vista previa y `--json-status`): el contrato UDP hacia Unity lleva `pressed`,
+`confidence` y `value`.
 
 ## Contrato UDP
 
 Un datagrama JSON por paquete, 30 veces por segundo:
 
 ```json
-{"version":1,"seq":1821,"red":"up","green":"down","redValid":true,"greenValid":true}
+{"version":2,"sequence":1821,"timestamp":1789800123.22,"calibrated":true,
+ "brake":{"pressed":true,"confidence":0.94,"value":0.08},
+ "accelerator":{"pressed":false,"confidence":0.9,"value":0.87}}
 ```
 
-- `red`, `green`: `up`, `down` o `unknown`.
-- `redValid`, `greenValid`: si el marcador se detectó con forma válida.
-- `seq`: entero de 32 bits con signo que envuelve; Unity descarta paquetes repetidos o
+- `brake` es el freno y `accelerator` el acelerador. Cada uno lleva `pressed`, la `confidence`
+  con la que se vio el marcador y `value`, el recorrido normalizado (0 = pisado, 1 = levantado
+  del todo).
+- `confidence: 0` significa que el marcador no se vio: nunca cuenta como pisado. Así Unity
+  distingue "el pie está abajo" de "no se ve el marcador".
+- `sequence`: entero de 32 bits con signo que envuelve; Unity descarta paquetes repetidos o
   fuera de orden.
+- `timestamp`: epoch Unix del frame que se clasificó. El visor lo usa para medir la latencia.
+- `calibrated`: si el clasificador ya tiene la línea del suelo de los dos pies.
 
-Los estados `unknown` van acompañados de `valid: false`, de modo que Unity distingue
-"el pie está abajo" de "no se ve el marcador".
+El contrato está duplicado en `FootProtocol.cs` (C#) y `protocol.py` (Python), y los tests de
+ambos lados leen el mismo fixture `tests/fixtures/protocol_samples.json`: si uno se desvía, el
+test del otro falla.
 
 ## Emisor de prueba
 
@@ -278,8 +319,9 @@ un `.bat`:
 FootTracker.exe --camera http://192.168.0.5:4747/video --preview
 ```
 
-El equipo de demostración solo necesita Windows, Quest Link, drivers de GPU, el visor, los
-mandos, un cable USB-C y la cámara. **No** necesita Unity Editor, Python ni OpenCV.
+El equipo de demostración solo necesita Windows, drivers de GPU, el visor, los mandos, un cable
+USB-C y la cámara; en el modo Quest independiente ni cable ni Quest Link, solo la misma red
+Wi-Fi. **No** necesita Unity Editor, Python ni OpenCV.
 
 ## Diagnóstico
 

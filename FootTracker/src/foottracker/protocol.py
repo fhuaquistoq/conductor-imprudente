@@ -1,16 +1,20 @@
 """Contrato UDP entre FootTracker y TaxiVR.
 
 Debe coincidir exactamente con Assets/_Project/Scripts/TaxiVR/Playable/FootProtocol.cs.
+
+Version 2: cada pedal viaja como objeto (`pressed`, `confidence`, `value`) y el paquete lleva
+la marca de tiempo del frame y si el clasificador esta calibrado, que es lo que permite medir
+latencia y perdida en la vista debug del visor.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5055
 DEFAULT_RATE = 30
@@ -30,23 +34,63 @@ class ProtocolError(ValueError):
     """El texto recibido no cumple el contrato."""
 
 
+def _number(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolError(f"{field} debe ser numerico.")
+    return float(value)
+
+
+def _boolean(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ProtocolError(f"{field} debe ser booleano.")
+    return value
+
+
+@dataclass(frozen=True)
+class Pedal:
+    """Un pedal: si esta pisado, con cuanta confianza se vio y cuanto se levanto (0 = pisado)."""
+
+    pressed: bool
+    confidence: float = 0.0
+    value: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "pressed": bool(self.pressed),
+            "confidence": round(float(self.confidence), 3),
+            "value": round(float(self.value), 3),
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Any, field: str) -> "Pedal":
+        if not isinstance(raw, dict):
+            raise ProtocolError(f"{field} debe ser un objeto JSON.")
+        if "pressed" not in raw:
+            raise ProtocolError(f"{field}.pressed es obligatorio.")
+        return cls(
+            pressed=_boolean(raw["pressed"], f"{field}.pressed"),
+            confidence=_number(raw.get("confidence", 0.0), f"{field}.confidence"),
+            value=_number(raw.get("value", 0.0), f"{field}.value"),
+        )
+
+
 @dataclass(frozen=True)
 class FootPacket:
     sequence: int
-    red: FootState
-    green: FootState
-    red_valid: bool = True
-    green_valid: bool = True
+    brake: Pedal
+    accelerator: Pedal
+    timestamp: float = 0.0
+    calibrated: bool = False
     version: int = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": int(self.version),
-            "seq": int(self.sequence),
-            "red": FootState(self.red).value,
-            "green": FootState(self.green).value,
-            "redValid": bool(self.red_valid),
-            "greenValid": bool(self.green_valid),
+            "sequence": int(self.sequence),
+            "timestamp": round(float(self.timestamp), 3),
+            "calibrated": bool(self.calibrated),
+            "brake": self.brake.to_dict(),
+            "accelerator": self.accelerator.to_dict(),
         }
 
     def to_json(self) -> str:
@@ -68,20 +112,17 @@ class FootPacket:
             raise ProtocolError("version debe ser entero.")
         if version != PROTOCOL_VERSION:
             raise ProtocolError(f"Version no soportada: {version}.")
-        sequence = raw.get("seq")
+        sequence = raw.get("sequence")
         if not isinstance(sequence, int) or isinstance(sequence, bool):
-            raise ProtocolError("seq debe ser entero.")
-        try:
-            red = FootState(raw.get("red"))
-            green = FootState(raw.get("green"))
-        except ValueError as error:
-            raise ProtocolError(f"Estado de marcador invalido: {error}") from error
+            raise ProtocolError("sequence debe ser entero.")
+        if "brake" not in raw or "accelerator" not in raw:
+            raise ProtocolError("Faltan brake o accelerator.")
         return cls(
             sequence=sequence,
-            red=red,
-            green=green,
-            red_valid=bool(raw.get("redValid", False)),
-            green_valid=bool(raw.get("greenValid", False)),
+            brake=Pedal.from_dict(raw["brake"], "brake"),
+            accelerator=Pedal.from_dict(raw["accelerator"], "accelerator"),
+            timestamp=_number(raw["timestamp"], "timestamp") if "timestamp" in raw else 0.0,
+            calibrated=_boolean(raw["calibrated"], "calibrated") if "calibrated" in raw else False,
             version=version,
         )
 
@@ -109,9 +150,19 @@ def is_newer(previous: int, following: int) -> bool:
     return difference != 0 and difference < 0x80000000
 
 
-def packet(sequence: int, red: FootState, green: FootState, red_valid: bool = True, green_valid: bool = True) -> FootPacket:
-    return FootPacket(sequence=sequence, red=red, green=green, red_valid=red_valid, green_valid=green_valid)
+def pedal_of_state(state: FootState, confidence: float = 0.0, value: float | None = None) -> Pedal:
+    """Traduce el resultado del clasificador al pedal que viaja por UDP.
+
+    Un marcador perdido (`unknown`) va con confianza 0: "no se ve" nunca es "pisado".
+    `value` es el recorrido normalizado que ya calcula el clasificador; si falta, se cae a
+    un binario (0 pisado, 1 levantado) hasta que el HITO 3 lo haga analogico de verdad.
+    """
+
+    pressed = state is FootState.DOWN
+    if value is None:
+        value = 0.0 if pressed else 1.0
+    return Pedal(pressed=pressed, confidence=0.0 if state is FootState.UNKNOWN else confidence, value=value)
 
 
-def with_validity(source: FootPacket, red_valid: bool, green_valid: bool) -> FootPacket:
-    return replace(source, red_valid=red_valid, green_valid=green_valid)
+def packet(sequence: int, brake: Pedal, accelerator: Pedal, timestamp: float = 0.0, calibrated: bool = False) -> FootPacket:
+    return FootPacket(sequence=sequence, brake=brake, accelerator=accelerator, timestamp=timestamp, calibrated=calibrated)

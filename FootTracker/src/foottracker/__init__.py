@@ -7,10 +7,12 @@ from .protocol import (
     PROTOCOL_VERSION,
     FootPacket,
     FootState,
+    Pedal,
     ProtocolError,
     Sequence,
     is_newer,
     packet,
+    pedal_of_state,
 )
 
 __all__ = [
@@ -20,8 +22,10 @@ __all__ = [
     "PROTOCOL_VERSION",
     "FootPacket",
     "FootState",
+    "Pedal",
     "ProtocolError",
     "Sequence",
     "is_newer",
     "packet",
+    "pedal_of_state",
 ]

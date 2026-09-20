@@ -26,11 +26,15 @@ def test_fixture_version_matches_protocol():
 @pytest.mark.parametrize("sample", load()["accepted"], ids=lambda s: s["json"])
 def test_accepted_samples_parse(sample):
     packet = FootPacket.from_json(sample["json"])
-    assert packet.sequence == sample["seq"]
-    assert packet.red.value == sample["red"]
-    assert packet.green.value == sample["green"]
-    assert packet.red_valid == sample["redValid"]
-    assert packet.green_valid == sample["greenValid"]
+    assert packet.sequence == sample["sequence"]
+    assert packet.timestamp == pytest.approx(sample["timestamp"])
+    assert packet.calibrated == sample["calibrated"]
+    assert packet.brake.pressed == sample["brake"]["pressed"]
+    assert packet.brake.confidence == pytest.approx(sample["brake"]["confidence"])
+    assert packet.brake.value == pytest.approx(sample["brake"]["value"])
+    assert packet.accelerator.pressed == sample["accelerator"]["pressed"]
+    assert packet.accelerator.confidence == pytest.approx(sample["accelerator"]["confidence"])
+    assert packet.accelerator.value == pytest.approx(sample["accelerator"]["value"])
 
 
 @pytest.mark.parametrize("raw", load()["rejected"])

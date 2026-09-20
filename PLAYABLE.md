@@ -18,8 +18,9 @@ atiendes sus peticiones y cobras según lo bien o mal que lo hayas tratado.
 
 Menú **TaxiVR > Playable > 5 - Jugar con simulador XR** hace ambos pasos de una vez.
 
-Si no hay visor se cae a teclado y ratón y lo avisa en consola. Para forzar escritorio: casilla **Force Desktop**
-o el argumento `-taxivr-desktop`.
+Si no hay visor, en Windows se cae a teclado y ratón y lo avisa en consola. Para forzar escritorio: casilla
+**Force Desktop** o el argumento `-taxivr-desktop`. En Android esa caída **no** existe: si OpenXR no arranca se
+muestra una pantalla fatal y el juego no continúa, porque los controles de teclado no sirven con el visor puesto.
 
 ### Ejecutable
 
@@ -44,6 +45,12 @@ mandan sobre el acelerador y el freno, y el teclado, los gatillos y el crucero n
 más de un segundo, el mando vuelve a ellos. Arrancar sin tracker no bloquea el arranque ni avisa de nada. El
 receptor escucha en `0.0.0.0`, así que en el Quest independiente el tracker puede correr en un PC de la LAN
 (el puerto no está autenticado: cualquier equipo de la red puede inyectar pedales).
+
+Para apuntar el tracker al visor, en `FootTracker/config.toml` pon `mode = "quest"` y la IP del Quest en
+`target_host`; la línea de comandos sigue ganando (`--host 192.168.1.42`). Con `mode = "desktop"` el destino es
+loopback, que es el modo de siempre. En una build de desarrollo del Quest
+(`pwsh -File Tools/build-quest-apk.ps1 -Development`) la vista debug muestra pedales, paquetes/s, pérdida,
+latencia y estado del enlace.
 
 Las **manos** se rastrean en el Quest: la feature *Hand Tracking Subsystem* de OpenXR está encendida para
 Android y Standalone, y el tooling la vuelve a encender antes de compilar, así que un APK sin manos no sale en
@@ -204,7 +211,9 @@ Assets/_Project/Scripts/TaxiVR/
 
 `Assets/Editor/TaxiDevelopmentBridge.cs` procesa únicamente comandos locales predeterminados desde
 `Logs/TaxiCommand.txt` (`inspect`, `play`, `stop`, `save`, `refresh`, `test`, `city`, `wire`, `configure`,
-`build`, `verify`, `runtime-check`). No abre puertos ni ejecuta código arbitrario.
+`build`, `verify`, `runtime-check`). No abre puertos ni ejecuta código arbitrario. El bridge solo se compila
+con el define `TAXIVR_DEVTOOLS` (o en un development build): el Editor de producción no carga automatización
+de desarrollo. Para reactivarlo, añade `TAXIVR_DEVTOOLS` a los defines de scripting del Editor.
 
 ## Desviaciones respecto a la especificación
 

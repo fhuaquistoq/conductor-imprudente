@@ -124,9 +124,13 @@ namespace TaxiVR.Playable
         void SendFeet(FootState red, FootState green, bool redValid, bool greenValid)
         {
             footSender ??= new UdpClient();
-            var bytes = Encoding.UTF8.GetBytes(FootProtocol.Serialize(new FootPacket(footSequence++, red, green, redValid, greenValid, FootProtocol.Version)));
+            var packet = FootProtocol.FromStates(footSequence++, redValid ? red : FootState.Unknown, greenValid ? green : FootState.Unknown, EpochSeconds(), true);
+            var bytes = Encoding.UTF8.GetBytes(FootProtocol.Serialize(packet));
             footSender.Send(bytes, bytes.Length, "127.0.0.1", FootProtocol.Port);
         }
+
+        /// <summary>Sello del emisor, para que el receptor pueda medir latencia.</summary>
+        static double EpochSeconds() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
 
         IEnumerator HoldFeet(FootState red, FootState green, float seconds, bool redValid = true, bool greenValid = true)
         {

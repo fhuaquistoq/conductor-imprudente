@@ -14,13 +14,28 @@ namespace TaxiVR.Playable
 
         /// <summary>El receptor vive siempre encendido: si no llega nada no hace nada y cuando llega, manda
         /// el. Editable en caliente, tambien durante Play; el cambio se aplica solo.</summary>
-        [SerializeField] bool enabled = true;
-        public bool Enabled { get => enabled; set => enabled = value; }
+        [SerializeField] bool listening = true;
+        public bool Enabled { get => listening; set => listening = value; }
 
         public FootStateMachine Machine { get; } = new();
         public bool SocketBound { get; private set; }
         public string Failure { get; private set; }
         public string Warning => Machine.Warning ? "Coloque los pies frente a la camara" : null;
+
+        // Metricas del enlace. Son diagnostico para la vista debug: no cambian quien manda sobre los pedales.
+        public int PacketsPerSecond { get; private set; }
+        public float PacketLoss { get; private set; }
+        public float LatencyMs { get; private set; }
+        public float LatencyP95Ms { get; private set; }
+        public FootConnection Connection { get; private set; } = FootConnection.Lost;
+        public bool ReceivedAnything { get; private set; }
+
+        const int LatencyWindow = 120;
+        readonly float[] latencies = new float[LatencyWindow];
+        int latencyCount, latencyIndex;
+        int received, expected;
+        int secondCount;
+        float secondStart;
 
         readonly ConcurrentQueue<FootPacket> queue = new();
         UdpClient client;
@@ -103,6 +118,7 @@ namespace TaxiVR.Playable
         {
             Apply();
             TakeLatest();
+            Metrics();
             if (TrackingReceived) Machine.Tick(red, green, redValid, greenValid, Time.deltaTime);
             else Machine.Tick(FootState.Unknown, FootState.Unknown, false, false, Time.deltaTime);
         }
@@ -117,11 +133,59 @@ namespace TaxiVR.Playable
                 newest = packet; any = true;
             }
             if (!any || hasPacket && !FootProtocol.IsNewer(lastSequence, newest.Sequence)) return;
+
+            // Perdida por huecos de secuencia: lo que el emisor dice haber mandado menos lo que llego.
+            expected += hasPacket ? (int)Math.Min(unchecked((uint)(newest.Sequence - lastSequence)), 1000u) : 1;
+            received++;
+            secondCount++;
+            ReceivedAnything = true;
+
             lastSequence = newest.Sequence;
             lastPacketTime = Time.unscaledTime;
             hasPacket = true;
-            red = newest.Red; green = newest.Green;
-            redValid = newest.RedValid; greenValid = newest.GreenValid;
+            red = newest.Brake; green = newest.Accelerator;
+            redValid = newest.BrakeValid; greenValid = newest.AcceleratorValid;
+            Sample(newest.Timestamp);
+        }
+
+        /// <summary>Latencia de un paquete: lo que tarda desde que el PC lo sello hasta que llega aqui.
+        /// Mide red y aplicacion, no la captura de la camara. Un reloj desajustado da valores raros, asi
+        /// que lo negativo se recorta a cero en vez de ensuciar la estadistica.</summary>
+        void Sample(double timestamp)
+        {
+            if (timestamp <= 0) return;
+            double nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            float latency = (float)Math.Max(nowMs - timestamp * 1000.0, 0.0);
+            LatencyMs = latency;
+            latencies[latencyIndex] = latency;
+            latencyIndex = (latencyIndex + 1) % LatencyWindow;
+            if (latencyCount < LatencyWindow) latencyCount++;
+        }
+
+        void Metrics()
+        {
+            float age = hasPacket ? Time.unscaledTime - lastPacketTime : float.MaxValue;
+            Connection = age > FootProtocol.LostSeconds ? FootConnection.Lost
+                : age > FootProtocol.UnstableSeconds ? FootConnection.Unstable
+                : FootConnection.Connected;
+
+            float elapsed = Time.unscaledTime - secondStart;
+            if (elapsed < 1f) return;
+            PacketsPerSecond = Mathf.RoundToInt(secondCount / elapsed);
+            secondCount = 0; secondStart = Time.unscaledTime;
+            PacketLoss = expected > 0 ? Mathf.Clamp01(1f - (float)received / expected) : 0f;
+            LatencyP95Ms = Percentile(.95f);
+        }
+
+        float Percentile(float fraction)
+        {
+            int count = Mathf.Min(latencyCount, LatencyWindow);
+            if (count == 0) return 0f;
+            var copy = new float[count];
+            Array.Copy(latencies, copy, count);
+            Array.Sort(copy);
+            int index = Mathf.Clamp(Mathf.CeilToInt(fraction * count) - 1, 0, count - 1);
+            return copy[index];
         }
     }
 }

@@ -30,21 +30,29 @@
 
 .EXAMPLE
     pwsh -File Tools/build-quest-apk.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Unity.exe"
+
+.EXAMPLE
+    pwsh -File Tools/build-quest-apk.ps1 -Development
 #>
 [CmdletBinding()]
 param(
     [string]$ProjectPath = (Split-Path -Parent $PSScriptRoot),
     [string]$UnityPath,
-    [string]$ApkPath = 'Builds/Quest/TaxiVR.apk',
-    [string]$LogPath = 'Logs/QuestBuild.log'
+    [string]$ApkPath,
+    [string]$LogPath = 'Logs/QuestBuild.log',
+    [switch]$Development
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ProfilePath = 'Assets/Settings/Build Profiles/Meta Quest.asset'
-$BuildMethod = 'TaxiVR.Bootstrap.Editor.QuestApkBuilder.Build'
 $SummaryPath = 'Logs/TaxiQuestBuildResult.txt'
+
+# El APK de desarrollo lleva dentro la vista debug de pedales y red (§14); el de produccion no.
+$BuildMethod = if ($Development) { 'TaxiVR.Bootstrap.Editor.QuestApkBuilder.BuildDevelopment' } else { 'TaxiVR.Bootstrap.Editor.QuestApkBuilder.Build' }
+if (-not $ApkPath) { $ApkPath = if ($Development) { 'Builds/Quest/TaxiVR-dev.apk' } else { 'Builds/Quest/TaxiVR.apk' } }
+$env:TAXIVR_QUEST_APK = $ApkPath
 
 function Get-UnityEditor {
     param([string]$ProjectRoot, [string]$Explicit)
@@ -88,6 +96,7 @@ Remove-Item -LiteralPath $apkFile -Force -ErrorAction SilentlyContinue
 Write-Host "Unity:   $unity"
 Write-Host "Perfil:  $ProfilePath"
 Write-Host "Destino: $ApkPath"
+Write-Host "Modo:    $(if ($Development) { 'desarrollo (vista debug)' } else { 'produccion' })"
 Write-Host ''
 
 # Unity.exe es una aplicacion GUI: con el operador & PowerShell no la espera, seguiria leyendo un APK que

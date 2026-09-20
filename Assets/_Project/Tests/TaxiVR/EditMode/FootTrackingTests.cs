@@ -24,49 +24,77 @@ namespace TaxiVR.Tests.EditMode
             for (int i = 0; i < times; i++) machine.Tick(red, green, true, true, delta);
         }
 
+        const string WellFormed =
+            "{\"version\":2,\"sequence\":1821,\"timestamp\":1789800123.22,\"calibrated\":true," +
+            "\"brake\":{\"pressed\":true,\"confidence\":0.94,\"value\":0.08}," +
+            "\"accelerator\":{\"pressed\":false,\"confidence\":0.9,\"value\":0.87}}";
+
         [Test]
         public void ParseAcceptsWellFormedPacket()
         {
-            Assert.IsTrue(FootProtocol.TryParse("{\"version\":1,\"seq\":1821,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}", out var packet));
+            Assert.IsTrue(FootProtocol.TryParse(WellFormed, out var packet));
             Assert.AreEqual(1821, packet.Sequence);
-            Assert.AreEqual(FootState.Up, packet.Red);
-            Assert.AreEqual(FootState.Down, packet.Green);
-            Assert.IsTrue(packet.RedValid && packet.GreenValid);
-            Assert.AreEqual(1, packet.Version);
+            Assert.AreEqual(1789800123.22, packet.Timestamp, .001);
+            Assert.IsTrue(packet.Calibrated);
+            Assert.AreEqual(FootState.Down, packet.Brake);
+            Assert.AreEqual(FootState.Up, packet.Accelerator);
+            Assert.AreEqual(0.94f, packet.BrakeConfidence, .001f);
+            Assert.AreEqual(0.08f, packet.BrakeValue, .001f);
+            Assert.AreEqual(2, packet.Version);
         }
 
         [TestCase("")]
         [TestCase("not json")]
         [TestCase("[1,2,3]")]
-        [TestCase("{\"seq\":1}")]
-        [TestCase("{\"red\":\"down\",\"green\":5}")]
+        [TestCase("{\"version\":2}")]
+        [TestCase("{\"version\":2,\"sequence\":1,\"brake\":\"down\",\"accelerator\":{\"pressed\":false}}")]
         public void ParseRejectsMalformedInput(string json) => Assert.IsFalse(FootProtocol.TryParse(json, out _));
 
         [Test]
-        public void ParseRejectsUnknownState() =>
-            Assert.IsFalse(FootProtocol.TryParse("{\"red\":\"sideways\",\"green\":\"down\"}", out _));
+        public void ParseRejectsTheOldContract() =>
+            Assert.IsFalse(FootProtocol.TryParse("{\"version\":1,\"seq\":1,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}", out _));
 
         [Test]
         public void ParseRejectsUnsupportedVersion() =>
-            Assert.IsFalse(FootProtocol.TryParse("{\"version\":99,\"red\":\"up\",\"green\":\"down\"}", out _));
+            Assert.IsFalse(FootProtocol.TryParse("{\"version\":99,\"sequence\":1,\"brake\":{\"pressed\":true},\"accelerator\":{\"pressed\":false}}", out _));
 
         [Test]
         public void ParseTreatsMissingVersionAsCurrent()
         {
-            Assert.IsTrue(FootProtocol.TryParse("{\"red\":\"up\",\"green\":\"down\"}", out var packet));
+            Assert.IsTrue(FootProtocol.TryParse("{\"sequence\":4,\"brake\":{\"pressed\":true},\"accelerator\":{\"pressed\":false}}", out var packet));
             Assert.AreEqual(FootProtocol.Version, packet.Version);
+        }
+
+        [Test]
+        public void AFootThatIsNotSeenIsUnknownAndNeverPressed()
+        {
+            Assert.IsTrue(FootProtocol.TryParse(
+                "{\"version\":2,\"sequence\":4,\"brake\":{\"pressed\":true,\"confidence\":0.0,\"value\":1.0},\"accelerator\":{\"pressed\":false,\"confidence\":0.0,\"value\":1.0}}",
+                out var packet));
+            Assert.AreEqual(FootState.Unknown, packet.Brake);
+            Assert.IsFalse(packet.BrakeValid);
         }
 
         [Test]
         public void SerializeRoundTripsThroughParse()
         {
-            var original = new FootPacket(7, FootState.Up, FootState.Unknown, true, false, FootProtocol.Version);
+            var original = FootProtocol.FromStates(7, FootState.Up, FootState.Unknown, 1789800123.5, true);
             Assert.IsTrue(FootProtocol.TryParse(FootProtocol.Serialize(original), out var parsed));
             Assert.AreEqual(original.Sequence, parsed.Sequence);
-            Assert.AreEqual(original.Red, parsed.Red);
-            Assert.AreEqual(original.Green, parsed.Green);
-            Assert.AreEqual(original.RedValid, parsed.RedValid);
-            Assert.AreEqual(original.GreenValid, parsed.GreenValid);
+            Assert.AreEqual(original.Timestamp, parsed.Timestamp, .001);
+            Assert.AreEqual(original.Calibrated, parsed.Calibrated);
+            Assert.AreEqual(original.Brake, parsed.Brake);
+            Assert.AreEqual(original.Accelerator, parsed.Accelerator);
+            Assert.AreEqual(original.BrakeConfidence, parsed.BrakeConfidence, .001f);
+            Assert.AreEqual(original.BrakeValue, parsed.BrakeValue, .001f);
+        }
+
+        [Test]
+        public void ConnectionThresholdsAreOrdered()
+        {
+            Assert.That(FootProtocol.UnstableSeconds, Is.LessThan(FootProtocol.LostSeconds));
+            Assert.That(FootProtocol.LostSeconds, Is.LessThan(FootProtocol.StaleSeconds),
+                "el estado del enlace es diagnostico; el mando vuelve al teclado mas tarde, como antes");
         }
 
         [Test]
@@ -281,7 +309,8 @@ namespace TaxiVR.Tests.EditMode
             Assert.IsFalse(machine.Brake);
         }
 
-        [Serializable] sealed class FixtureSample { public string json; public int seq; public string red; public string green; public bool redValid; public bool greenValid; }
+        [Serializable] sealed class FixturePedal { public bool pressed; public float confidence; public float value; }
+        [Serializable] sealed class FixtureSample { public string json; public int sequence; public double timestamp; public bool calibrated; public FixturePedal brake; public FixturePedal accelerator; }
         [Serializable] sealed class FixtureOrder { public int previous; public int next; public bool expected; }
         [Serializable] sealed class ProtocolFixture { public int version; public FixtureSample[] accepted; public string[] rejected; public FixtureOrder[] newer; }
 
@@ -298,11 +327,15 @@ namespace TaxiVR.Tests.EditMode
             foreach (var sample in fixture.accepted)
             {
                 Assert.IsTrue(FootProtocol.TryParse(sample.json, out var packet), "Deberia aceptar: " + sample.json);
-                Assert.AreEqual(sample.seq, packet.Sequence);
-                Assert.AreEqual(sample.red, FootProtocol.Text(packet.Red));
-                Assert.AreEqual(sample.green, FootProtocol.Text(packet.Green));
-                Assert.AreEqual(sample.redValid, packet.RedValid);
-                Assert.AreEqual(sample.greenValid, packet.GreenValid);
+                Assert.AreEqual(sample.sequence, packet.Sequence);
+                Assert.AreEqual(sample.timestamp, packet.Timestamp, .001, "timestamp de " + sample.json);
+                Assert.AreEqual(sample.calibrated, packet.Calibrated);
+                Assert.AreEqual(sample.brake.pressed, packet.BrakePressed, "freno de " + sample.json);
+                Assert.AreEqual(sample.brake.confidence, packet.BrakeConfidence, .001f);
+                Assert.AreEqual(sample.brake.value, packet.BrakeValue, .001f);
+                Assert.AreEqual(sample.accelerator.pressed, packet.AcceleratorPressed, "acelerador de " + sample.json);
+                Assert.AreEqual(sample.accelerator.confidence, packet.AcceleratorConfidence, .001f);
+                Assert.AreEqual(sample.accelerator.value, packet.AcceleratorValue, .001f);
             }
             foreach (var raw in fixture.rejected)
                 Assert.IsFalse(FootProtocol.TryParse(raw, out _), "Deberia rechazar: " + raw);

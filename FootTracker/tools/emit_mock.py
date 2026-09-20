@@ -13,7 +13,7 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from foottracker.protocol import DEFAULT_HOST, DEFAULT_PORT, FootState, Sequence, packet  # noqa: E402
+from foottracker.protocol import DEFAULT_HOST, DEFAULT_PORT, FootState, Sequence, packet, pedal_of_state  # noqa: E402
 
 SCRIPTS: dict[str, list[tuple[float, FootState, FootState]]] = {
     # (segundos, rojo, verde)
@@ -68,7 +68,13 @@ def main(argv: list[str] | None = None, stdout=sys.stdout) -> int:
         for seconds, red, green in SCRIPTS[args.script]:
             deadline = time.perf_counter() + seconds
             while time.perf_counter() < deadline:
-                message = packet(sequence.next(), red, green, red != FootState.UNKNOWN, green != FootState.UNKNOWN)
+                message = packet(
+                    sequence.next(),
+                    pedal_of_state(red, 1.0),
+                    pedal_of_state(green, 1.0),
+                    timestamp=time.time(),
+                    calibrated=True,
+                )
                 sender.sendto(message.encode(), (args.host, args.port))
                 sent += 1
                 if args.as_json:

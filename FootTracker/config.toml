@@ -1,0 +1,12 @@
+# Perfil de destino del FootTracker.
+#
+# desktop: el juego corre en este mismo PC (modo escritorio o Quest Link). Destino loopback.
+# quest:   el juego corre independiente en el visor. Pon en target_host la IP del Quest en la
+#          misma red (5 GHz, aislamiento de clientes desactivado). La IP la muestra el visor en
+#          Configuracion > Wi-Fi, o `adb shell ip route` con el Quest conectado por USB.
+
+mode = "desktop"
+target_host = "127.0.0.1"
+target_port = 5055
+camera_index = 0
+send_rate = 30

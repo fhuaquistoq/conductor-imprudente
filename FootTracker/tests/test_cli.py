@@ -7,13 +7,15 @@ import foottracker.cli as cli
 from foottracker.calibration import CalibrationProfile, ColorRange, MarkerCalibration
 from foottracker.classifier import MarkerResult, ThresholdMode
 from foottracker.cli import build_classifier, build_parser, next_photo_index, status_json
+from foottracker.config import apply as apply_config
 from foottracker.probe import StreamProbe
-from foottracker.protocol import FootState, packet
+from foottracker.protocol import FootState, Pedal, packet
 from foottracker.source import CameraError, camera, parse_camera, phone_camera, usb_webcam
 
 
-def test_parser_defaults_match_unity_port_and_rate():
+def test_defaults_match_unity_port_and_rate():
     args = build_parser().parse_args([])
+    apply_config(args, None)
     assert args.host == "127.0.0.1"
     assert args.port == 5055
     assert args.rate == 30
@@ -70,17 +72,18 @@ def test_build_classifier_loads_the_profile_floor_and_color():
 
 
 def test_status_json_adds_the_measured_heights():
-    message = packet(7, FootState.UP, FootState.DOWN, True, True)
+    message = packet(7, Pedal(False, 0.9, 0.9), Pedal(True, 0.9, 0.05), timestamp=1.0, calibrated=True)
     payload = json.loads(status_json(message, MarkerResult(FootState.UP, True, 3.24), MarkerResult(FootState.DOWN, True, 0.0)))
-    assert payload["red"] == "up" and payload["seq"] == 7
-    assert payload["redHeightCm"] == 3.2
-    assert payload["greenHeightCm"] == 0.0
+    assert payload["sequence"] == 7
+    assert payload["brake"]["pressed"] is False and payload["accelerator"]["pressed"] is True
+    assert payload["brakeHeightCm"] == 3.2
+    assert payload["acceleratorHeightCm"] == 0.0
 
 
 def test_status_json_reports_null_without_scale():
-    message = packet(1, FootState.UNKNOWN, FootState.UNKNOWN, False, False)
+    message = packet(1, Pedal(False), Pedal(False))
     payload = json.loads(status_json(message, MarkerResult(FootState.UNKNOWN, False), MarkerResult(FootState.UNKNOWN, False)))
-    assert payload["redHeightCm"] is None and payload["greenHeightCm"] is None
+    assert payload["brakeHeightCm"] is None and payload["acceleratorHeightCm"] is None
 
 
 def test_parser_has_no_photo_capture_by_default():

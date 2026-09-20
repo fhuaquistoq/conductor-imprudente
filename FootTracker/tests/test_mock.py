@@ -7,7 +7,7 @@ import socket
 import threading
 import time
 
-from foottracker.protocol import FootPacket, FootState, is_newer
+from foottracker.protocol import FootPacket, is_newer
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -50,7 +50,8 @@ def test_emitter_produces_parseable_packets():
     datagrams = collect("truth-table", 1.0)
     assert datagrams
     packets = [FootPacket.from_json(raw.decode("utf-8")) for raw in datagrams]
-    assert all(packet.version == 1 for packet in packets)
+    assert all(packet.version == 2 for packet in packets)
+    assert all(packet.timestamp > 0 for packet in packets), "el emisor sella cada paquete para poder medir latencia"
     assert len({packet.sequence for packet in packets}) == len(packets)
 
 
@@ -62,13 +63,13 @@ def test_emitter_sequence_is_monotonic():
 def test_truth_table_script_starts_with_both_feet_down_and_unarmed():
     packets = [FootPacket.from_json(raw.decode("utf-8")) for raw in collect("truth-table", 1.0)]
     assert packets
-    assert all(packet.red is FootState.DOWN and packet.green is FootState.DOWN for packet in packets)
+    assert all(packet.brake.pressed and packet.accelerator.pressed for packet in packets)
 
 
-def test_loss_script_reports_unknown_with_invalid_flags():
+def test_loss_script_reports_lost_markers_with_zero_confidence():
     packets = [FootPacket.from_json(raw.decode("utf-8")) for raw in collect("loss", 2.4)]
     assert packets
-    assert any(packet.red is FootState.DOWN and packet.red_valid for packet in packets)
-    lost = [packet for packet in packets if packet.red is FootState.UNKNOWN]
+    assert any(packet.brake.pressed and packet.brake.confidence > 0 for packet in packets)
+    lost = [packet for packet in packets if packet.brake.confidence == 0]
     assert lost
-    assert all(not packet.red_valid and not packet.green_valid for packet in lost)
+    assert all(packet.brake.confidence == 0 and packet.accelerator.confidence == 0 for packet in lost)

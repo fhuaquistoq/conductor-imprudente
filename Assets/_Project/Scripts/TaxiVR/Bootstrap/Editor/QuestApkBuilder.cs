@@ -21,44 +21,55 @@ namespace TaxiVR.Bootstrap.Editor
     {
         public const string ProfilePath = "Assets/Settings/Build Profiles/Meta Quest.asset";
         public const string ApkPath = "Builds/Quest/TaxiVR.apk";
+        /// <summary>APK de desarrollo: lleva dentro la vista debug de pedales y red (§14).</summary>
+        public const string DevelopmentApkPath = "Builds/Quest/TaxiVR-dev.apk";
         public const string ResultPath = "Logs/TaxiQuestBuildResult.txt";
         const string AndroidPackage = "com.unsa.eltaxistaimprudente";
         const string ScenePath = TaxiVR.Playable.Editor.PlayableBuilder.Scene;
 
         [MenuItem("TaxiVR/Build Quest APK")]
-        public static void BuildFromMenu()
-        {
-            Build();
-        }
+        public static void BuildFromMenu() => Build();
+
+        [MenuItem("TaxiVR/Build Quest APK (Development)")]
+        public static void BuildDevelopmentFromMenu() => BuildDevelopment();
 
         /// <summary>Punto de entrada de <c>-executeMethod</c>. Lanza una excepcion si la compilacion falla,
         /// para que Unity salga con codigo 1.</summary>
-        public static void Build()
+        public static void Build() => Run(ApkPath, BuildOptions.None);
+
+        /// <summary>Lo mismo pero en modo desarrollo, que es lo que enciende la vista debug en el visor.</summary>
+        public static void BuildDevelopment() => Run(DevelopmentApkPath, BuildOptions.Development);
+
+        static void Run(string fallbackApkPath, BuildOptions options)
         {
+            // El script puede fijar el destino; si no, cada entrada tiene el suyo.
+            var apk = Environment.GetEnvironmentVariable("TAXIVR_QUEST_APK") is { Length: > 0 } fromEnvironment
+                ? fromEnvironment : fallbackApkPath;
             var profile = RequireProfile();
             // Las manos son entrada del juego: sin esta feature en Android, OpenXR no crea el XRHandSubsystem
             // y el APK sale respondiendo solo a los mandos Touch.
             XrFeatureSetup.Enable(BuildTargetGroup.Android);
             RequireContract(profile);
-            Directory.CreateDirectory(Path.GetDirectoryName(ApkPath));
+            Directory.CreateDirectory(Path.GetDirectoryName(apk));
 
             var report = BuildPipeline.BuildPlayer(new BuildPlayerWithProfileOptions
             {
                 buildProfile = profile,
-                locationPathName = ApkPath,
-                options = BuildOptions.None,
+                locationPathName = apk,
+                options = options,
             });
 
             var summary = report.summary;
             Directory.CreateDirectory("Logs");
             File.WriteAllText(ResultPath, summary.result + "\nEscena: " + ScenePath + "\nPerfil: " + ProfilePath +
+                "\nDesarrollo: " + ((options & BuildOptions.Development) != 0) +
                 "\nBytes: " + summary.totalSize + "\nErrors: " + summary.totalErrors +
-                "\nWarnings: " + summary.totalWarnings + "\nApk: " + ApkPath);
+                "\nWarnings: " + summary.totalWarnings + "\nApk: " + apk);
 
             if (summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException("La compilacion del APK fallo (" + summary.result + "). Detalle en " + ResultPath + ".");
-            if (!File.Exists(ApkPath))
-                throw new InvalidOperationException("Unity informo exito pero no hay APK en " + ApkPath + ".");
+            if (!File.Exists(apk))
+                throw new InvalidOperationException("Unity informo exito pero no hay APK en " + apk + ".");
         }
 
         static BuildProfile RequireProfile()

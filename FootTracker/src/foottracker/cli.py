@@ -13,7 +13,8 @@ from .calibration import CalibrationProfile, SampleCollector, guide_rect
 from .classifier import GREEN, RED, FootClassifier, MarkerResult, MarkerTracker, ThresholdMode
 from .photos import analyze_folder, write_annotated
 from .probe import probe_stream
-from .protocol import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_RATE, Sequence, packet
+from .config import DEFAULT_CONFIG, ConfigError, apply as apply_config, load as load_config
+from .protocol import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_RATE, Sequence, packet, pedal_of_state
 from .source import CameraError, CameraSource, camera, first_available_camera, list_cameras, parse_camera
 
 PREVIEW_WINDOW = "FootTracker - rojo frena, verde acelera"
@@ -26,10 +27,11 @@ AUTO_CAMERA = ("auto", "first")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="foottracker", description="Clasifica los pedales rojo/verde y los envia a TaxiVR por UDP local.")
-    parser.add_argument("--host", default=DEFAULT_HOST, help="destino UDP (por defecto 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="puerto UDP (por defecto 5055)")
-    parser.add_argument("--rate", type=int, default=DEFAULT_RATE, help="paquetes por segundo (por defecto 30)")
-    parser.add_argument("--camera", default="0", help="indice de webcam, URL del celular o 'auto' para la primera conectada")
+    parser.add_argument("--config", default=DEFAULT_CONFIG, metavar="FILE", help="perfil TOML de destino (por defecto config.toml si existe)")
+    parser.add_argument("--host", default=None, help="destino UDP; gana al perfil (por defecto 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=None, help="puerto UDP; gana al perfil (por defecto 5055)")
+    parser.add_argument("--rate", type=int, default=None, help="paquetes por segundo; gana al perfil (por defecto 30)")
+    parser.add_argument("--camera", default=None, help="indice de webcam, URL del celular o 'auto'; gana al perfil")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=int, default=30)
@@ -69,7 +71,7 @@ def resolve_camera(value: str) -> int | str:
 
 def build_source(args: argparse.Namespace) -> CameraSource:
     return camera(
-        resolve_camera(args.camera),
+        resolve_camera(args.camera or "0"),
         args.width,
         args.height,
         args.fps,
@@ -121,8 +123,8 @@ def height_text(result: MarkerResult) -> str:
 
 def status_json(message, red: MarkerResult, green: MarkerResult) -> str:
     payload = message.to_dict()
-    payload["redHeightCm"] = None if red.height_cm is None else round(red.height_cm, 1)
-    payload["greenHeightCm"] = None if green.height_cm is None else round(green.height_cm, 1)
+    payload["brakeHeightCm"] = None if red.height_cm is None else round(red.height_cm, 1)
+    payload["acceleratorHeightCm"] = None if green.height_cm is None else round(green.height_cm, 1)
     return json.dumps(payload, separators=(",", ":"))
 
 
@@ -314,9 +316,18 @@ def run(args: argparse.Namespace, stdout=sys.stdout) -> int:
             if reported is not None and state != reported:
                 print(f"FootTracker: camara {status.message}, {status.reconnects} reconexiones", file=sys.stderr)
             reported = state
+            # La marca de tiempo es la del frame que se acaba de clasificar, para que el visor pueda
+            # medir latencia desde el movimiento real y no solo lo que tarda el datagrama.
+            stamp = time.time()
             red, green = classifier.process(frame, delta)
             previous = now
-            message = packet(sequence.next(), red.state, green.state, red.valid, green.valid)
+            message = packet(
+                sequence.next(),
+                pedal_of_state(red.state, red.confidence, red.value),
+                pedal_of_state(green.state, green.confidence, green.value),
+                timestamp=stamp,
+                calibrated=classifier.red.calibrated and classifier.green.calibrated,
+            )
             sender.sendto(message.encode(), (args.host, args.port))
             if args.as_json:
                 print(message.to_json(), file=stdout, flush=True)
@@ -368,6 +379,12 @@ def probe_source(args: argparse.Namespace, stdout=sys.stdout) -> int:
 
 def main(argv: list[str] | None = None, stdout=sys.stdout) -> int:
     args = build_parser().parse_args(argv)
+    try:
+        # El fichero por defecto es opcional; uno pedido a mano que no exista si es error.
+        apply_config(args, load_config(args.config, required=args.config != DEFAULT_CONFIG))
+    except ConfigError as error:
+        print(f"FootTracker: {error}", file=sys.stderr)
+        return 2
     if args.list_cameras:
         return list_cameras_mode(stdout)
     if args.capture_calibration:

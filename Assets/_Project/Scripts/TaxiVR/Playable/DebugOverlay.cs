@@ -46,6 +46,8 @@ namespace TaxiVR.Playable
                 $"Pie verde {Side(machine?.Green ?? FootState.Unknown, machine != null && machine.GreenValid)}   rojo {Side(machine?.Red ?? FootState.Unknown, machine != null && machine.RedValid)}",
                 $"Mando {(drive.FootTracking ? "pies (tracker)" : "teclado / mandos")}   armados {(machine != null && machine.Armed ? "si" : "no")}   voz {(root.Player.Speaking ? "hablando" : "callado")}",
                 $"AVISO pies: {root.Feet?.Warning ?? "sin avisos"}",
+                $"Pedales freno {(drive.Brake > .5f ? "ON" : "OFF")}   acelerador {(drive.Throttle > .5f ? "ON" : "OFF")}",
+                $"Enlace {Link(root.Feet)}   {Connection(root.Feet)}",
                 $"Volante {drive.Wheel?.Value ?? 0:0} grados   Marcha {(drive.Direction > 0 ? "F" : drive.Direction < 0 ? "R" : "O")}",
                 $"Velocidad {drive.Speed * 3.6f:0} km/h   Ruedas {drive.GroundedWheels}/4",
                 $"GPS {root.GPS.Distance:0} m   ruta {root.GPS.Path.Count} cruces   {(root.GPS.Powered ? "on" : "off")}",
@@ -58,5 +60,17 @@ namespace TaxiVR.Playable
                 "Pies: verde acelera, rojo frena (con el tracker en linea se ignoran W/S y gatillos)",
             });
         }
+
+        static string Link(FootReceiver feet) => feet == null
+            ? "-"
+            : $"{feet.PacketsPerSecond} paq/s, {feet.PacketLoss * 100f:0.0}% perdida, {feet.LatencyMs:0} ms (P95 {feet.LatencyP95Ms:0})";
+
+        static string Connection(FootReceiver feet) => feet switch
+        {
+            null => "sin receptor",
+            _ when !feet.ReceivedAnything => "sin datos",
+            _ when !feet.SocketBound => "puerto cerrado",
+            _ => feet.Connection.ToString(),
+        };
     }
 }

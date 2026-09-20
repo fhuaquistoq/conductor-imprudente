@@ -1,69 +1,114 @@
 using System;
+using System.Globalization;
 using UnityEngine;
 
 namespace TaxiVR.Playable
 {
     public enum FootState { Up, Down, Unknown }
 
+    /// <summary>Salud del enlace con el FootTracker. Es diagnostico: no cambia quien manda sobre los pedales.</summary>
+    public enum FootConnection { Connected, Unstable, Lost }
+
     public readonly struct FootPacket
     {
         public readonly int Sequence;
-        public readonly FootState Red;
-        public readonly FootState Green;
-        public readonly bool RedValid;
-        public readonly bool GreenValid;
+        public readonly double Timestamp;
+        public readonly bool Calibrated;
+        public readonly bool BrakePressed, AcceleratorPressed;
+        public readonly float BrakeConfidence, AcceleratorConfidence;
+        public readonly float BrakeValue, AcceleratorValue;
         public readonly int Version;
-        public FootPacket(int sequence, FootState red, FootState green, bool redValid, bool greenValid, int version)
-        { Sequence = sequence; Red = red; Green = green; RedValid = redValid; GreenValid = greenValid; Version = version; }
+
+        public FootPacket(int sequence, double timestamp, bool calibrated,
+            bool brakePressed, float brakeConfidence, float brakeValue,
+            bool acceleratorPressed, float acceleratorConfidence, float acceleratorValue, int version)
+        {
+            Sequence = sequence; Timestamp = timestamp; Calibrated = calibrated;
+            BrakePressed = brakePressed; BrakeConfidence = brakeConfidence; BrakeValue = brakeValue;
+            AcceleratorPressed = acceleratorPressed; AcceleratorConfidence = acceleratorConfidence; AcceleratorValue = acceleratorValue;
+            Version = version;
+        }
+
+        /// <summary>Confianza 0 significa que el marcador no se vio: "no se ve" nunca es "pisado".</summary>
+        public bool BrakeValid => BrakeConfidence > 0f;
+        public bool AcceleratorValid => AcceleratorConfidence > 0f;
+        public FootState Brake => State(BrakeValid, BrakePressed);
+        public FootState Accelerator => State(AcceleratorValid, AcceleratorPressed);
+
+        static FootState State(bool valid, bool pressed) => !valid ? FootState.Unknown : pressed ? FootState.Down : FootState.Up;
     }
 
     public static class FootProtocol
     {
-        public const int Version = 1;
+        public const int Version = 2;
         public const int Port = 5055;
         public const int RatePerSecond = 30;
+        /// <summary>Sin datos frescos, el mando vuelve al teclado y a los gatillos.</summary>
         public const float StaleSeconds = 1f;
+        /// <summary>Umbrales de §7 para el estado del enlace, solo informativos en la vista debug.</summary>
+        public const float UnstableSeconds = .25f;
+        public const float LostSeconds = .5f;
 
         [Serializable]
-        sealed class Packet
+        sealed class PedalWire
+        {
+            public bool pressed;
+            public float confidence;
+            public float value;
+        }
+
+        [Serializable]
+        sealed class PacketWire
         {
             public int version;
-            public int seq;
-            public string red;
-            public string green;
-            public bool redValid;
-            public bool greenValid;
+            public int sequence;
+            public double timestamp;
+            public bool calibrated;
+            public PedalWire brake;
+            public PedalWire accelerator;
         }
 
         public static bool TryParse(string json, out FootPacket packet)
         {
             packet = default;
             if (string.IsNullOrWhiteSpace(json) || json[0] != '{') return false;
-            Packet parsed;
-            try { parsed = JsonUtility.FromJson<Packet>(json); }
+            PacketWire parsed;
+            try { parsed = JsonUtility.FromJson<PacketWire>(json); }
             catch (ArgumentException) { return false; }
             if (parsed == null) return false;
+            // Sin `version` se asume la actual, igual que en protocol.py; cualquier otra se rechaza.
             if (parsed.version != 0 && parsed.version != Version) return false;
-            if (!TryState(parsed.red, out var red) || !TryState(parsed.green, out var green)) return false;
-            packet = new FootPacket(parsed.seq, red, green, parsed.redValid, parsed.greenValid, parsed.version == 0 ? Version : parsed.version);
+            if (parsed.brake == null || parsed.accelerator == null) return false;
+            packet = new FootPacket(parsed.sequence, parsed.timestamp, parsed.calibrated,
+                parsed.brake.pressed, parsed.brake.confidence, parsed.brake.value,
+                parsed.accelerator.pressed, parsed.accelerator.confidence, parsed.accelerator.value,
+                parsed.version == 0 ? Version : parsed.version);
             return true;
         }
 
         public static string Serialize(FootPacket packet) =>
-            $"{{\"version\":{packet.Version},\"seq\":{packet.Sequence},\"red\":\"{Text(packet.Red)}\",\"green\":\"{Text(packet.Green)}\",\"redValid\":{(packet.RedValid ? "true" : "false")},\"greenValid\":{(packet.GreenValid ? "true" : "false")}}}";
+            "{\"version\":" + packet.Version +
+            ",\"sequence\":" + packet.Sequence +
+            ",\"timestamp\":" + Number(packet.Timestamp) +
+            ",\"calibrated\":" + (packet.Calibrated ? "true" : "false") +
+            ",\"brake\":" + Pedal(packet.BrakePressed, packet.BrakeConfidence, packet.BrakeValue) +
+            ",\"accelerator\":" + Pedal(packet.AcceleratorPressed, packet.AcceleratorConfidence, packet.AcceleratorValue) + "}";
+
+        /// <summary>Atajo para el harness y las pruebas: un estado Up/Down/Unknown por pedal.</summary>
+        public static FootPacket FromStates(int sequence, FootState brake, FootState accelerator, double timestamp = 0.0, bool calibrated = true) =>
+            new FootPacket(sequence, timestamp, calibrated,
+                brake == FootState.Down, brake == FootState.Unknown ? 0f : 1f, brake == FootState.Down ? 0f : 1f,
+                accelerator == FootState.Down, accelerator == FootState.Unknown ? 0f : 1f, accelerator == FootState.Down ? 0f : 1f,
+                Version);
+
+        static string Pedal(bool pressed, float confidence, float value) =>
+            "{\"pressed\":" + (pressed ? "true" : "false") +
+            ",\"confidence\":" + Number(confidence) +
+            ",\"value\":" + Number(value) + "}";
+
+        static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
         public static string Text(FootState state) => state == FootState.Up ? "up" : state == FootState.Down ? "down" : "unknown";
-
-        public static bool TryState(string value, out FootState state)
-        {
-            switch (value)
-            {
-                case "up": state = FootState.Up; return true;
-                case "down": state = FootState.Down; return true;
-                case "unknown": state = FootState.Unknown; return true;
-                default: state = FootState.Unknown; return false;
-            }
-        }
 
         public static bool IsNewer(int previous, int next)
         {

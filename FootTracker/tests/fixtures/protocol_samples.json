@@ -1,40 +1,33 @@
 {
-  "comment": "Contrato compartido entre FootProtocol.cs (C#) y protocol.py (Python). Los tests de ambos lados leen este mismo fichero para que no se puedan desincronizar.",
-  "version": 1,
+  "comment": "Contrato compartido entre FootProtocol.cs (C#) y protocol.py (Python). Los tests de ambos lados leen este mismo fichero para que no se puedan desincronizar. Los 'rejected' son solo casos que los dos lenguajes rechazan por estructura o version: JsonUtility no distingue un campo ausente de uno por defecto.",
+  "version": 2,
   "port": 5055,
   "debounceSamples": 3,
   "accepted": [
     {
-      "json": "{\"version\":1,\"seq\":1821,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}",
-      "seq": 1821,
-      "red": "up",
-      "green": "down",
-      "redValid": true,
-      "greenValid": true
+      "json": "{\"version\":2,\"sequence\":1821,\"timestamp\":1789800123.22,\"calibrated\":true,\"brake\":{\"pressed\":true,\"confidence\":0.94,\"value\":0.08},\"accelerator\":{\"pressed\":false,\"confidence\":0.9,\"value\":0.87}}",
+      "sequence": 1821,
+      "timestamp": 1789800123.22,
+      "calibrated": true,
+      "brake": { "pressed": true, "confidence": 0.94, "value": 0.08 },
+      "accelerator": { "pressed": false, "confidence": 0.9, "value": 0.87 }
     },
     {
-      "json": "{\"version\":1,\"seq\":0,\"red\":\"down\",\"green\":\"up\",\"redValid\":false,\"greenValid\":true}",
-      "seq": 0,
-      "red": "down",
-      "green": "up",
-      "redValid": false,
-      "greenValid": true
-    },
-    {
-      "json": "{\"version\":1,\"seq\":7,\"red\":\"unknown\",\"green\":\"unknown\",\"redValid\":false,\"greenValid\":false}",
-      "seq": 7,
-      "red": "unknown",
-      "green": "unknown",
-      "redValid": false,
-      "greenValid": false
+      "json": "{\"version\":2,\"sequence\":0,\"timestamp\":0.0,\"calibrated\":false,\"brake\":{\"pressed\":false,\"confidence\":0.0,\"value\":1.0},\"accelerator\":{\"pressed\":true,\"confidence\":0.5,\"value\":0.0}}",
+      "sequence": 0,
+      "timestamp": 0.0,
+      "calibrated": false,
+      "brake": { "pressed": false, "confidence": 0.0, "value": 1.0 },
+      "accelerator": { "pressed": true, "confidence": 0.5, "value": 0.0 }
     }
   ],
   "rejected": [
     "",
     "no es json",
     "[]",
-    "{\"version\":2,\"seq\":1,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}",
-    "{\"version\":1,\"seq\":1,\"red\":\"sideways\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}"
+    "[1, 2, 3]",
+    "{\"version\":1,\"seq\":1,\"red\":\"up\",\"green\":\"down\",\"redValid\":true,\"greenValid\":true}",
+    "{\"version\":99,\"sequence\":1,\"brake\":{\"pressed\":true},\"accelerator\":{\"pressed\":false}}"
   ],
   "newer": [
     { "previous": 10, "next": 11, "expected": true },
